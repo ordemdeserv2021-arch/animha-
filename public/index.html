@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Fluxo de Caixa</title>
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+  <h1>Painel de Fluxo de Caixa</h1>
+
+  <!-- CARDS DE SALDO -->
+  <div class="cards">
+    <div class="card entrada">
+      <small>Total Entradas</small>
+      <h3 id="entradas">R$ 0,00</h3>
+    </div>
+    <div class="card saida">
+      <small>Total Saídas</small>
+      <h3 id="saidas">R$ 0,00</h3>
+    </div>
+    <div class="card saldo">
+      <small>Saldo Total</small>
+      <h3 id="saldo">R$ 0,00</h3>
+    </div>
+  </div>
+
+  <!-- SEÇÃO SUPERIOR: FORMULÁRIOS DE CADASTRO -->
+  <div class="secao-formularios">
+    
+    <!-- FORMULÁRIO DE NOVA CATEGORIA -->
+    <form id="formCategoria" class="card-form">
+      <h3>Nova Categoria</h3>
+      <div class="field">
+        <label>Nome da Categoria</label>
+        <input type="text" id="cat_nome" required placeholder="Ex: Infraestrutura, Manutenção">
+      </div>
+      <div class="field">
+        <label>Tipo da Categoria</label>
+        <select id="cat_tipo" required>
+          <option value="RECEITA">Receita</option>
+          <option value="DESPESA">Despesa</option>
+        </select>
+      </div>
+      <button type="submit" class="btn-categoria">Cadastrar Categoria</button>
+    </form>
+
+    <!-- FORMULÁRIO DE NOVA TRANSAÇÃO -->
+    <form id="formTransacao" class="card-form">
+      <h3>Novo Lançamento</h3>
+      <div class="field">
+        <label>Descrição</label>
+        <input type="text" id="descricao" required placeholder="Ex: Manutenção de CFTV">
+      </div>
+      <div class="field">
+        <label>Valor (R$)</label>
+        <input type="number" step="0.01" id="valor" required placeholder="0.00">
+      </div>
+      <div class="field">
+        <label>Tipo</label>
+        <select id="tipo" required>
+          <option value="ENTRADA">Entrada (Receita)</option>
+          <option value="SAIDA">Saída (Despesa)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Categoria</label>
+        <select id="categoria_id">
+          <option value="">Sem Categoria</option>
+        </select>
+      </div>
+      <button type="submit">Registrar Lançamento</button>
+    </form>
+
+  </div>
+
+  <!-- FILTRO DE DATAS E EXPORTAÇÃO -->
+  <div class="filtro-container">
+    <h3>Filtrar Lançamentos por Período</h3>
+    <div class="campos-filtro">
+      <div>
+        <label>Data Início:</label>
+        <input type="date" id="filtro_inicio">
+      </div>
+      <div>
+        <label>Data Fim:</label>
+        <input type="date" id="filtro_fim">
+      </div>
+      <button onclick="aplicarFiltroPeriodo()" class="btn-filtrar">Filtrar</button>
+      <button onclick="limparFiltro()" class="btn-limpar">Limpar Filtro</button>
+      <button onclick="exportarParaCSV()" class="btn-exportar">Exportar CSV</button>
+    </div>
+  </div>
+
+  <!-- HISTÓRICO DE TRANSAÇÕES -->
+  <div class="tabela-container">
+    <h3>Histórico de Lançamentos</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Descrição</th>
+          <th>Tipo</th>
+          <th>Categoria</th>
+          <th>Valor</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tabelaTransacoes">
+        <!-- Linhas inseridas via JS -->
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    // Estado global das transações para exportação
+    let transacoesAtuais = [];
+
+    // 1. Carregar Resumo do Caixa
+    async function carregarResumo(dataInicio = '', dataFim = '') {
+      let url = '/fluxo-caixa/resumo';
+      if (dataInicio && dataFim) {
+        url += `?dataInicio=${dataInicio}&dataFim=${dataFim}`;
+      }
+
+      const res = await fetch(url);
+      const data = await res.json();
+      
+      document.getElementById('entradas').innerText = `R$ ${data.totalEntradas}`;
+      document.getElementById('saidas').innerText = `R$ ${data.totalSaidas}`;
+      document.getElementById('saldo').innerText = `R$ ${data.saldoTotal}`;
+    }
+
+    // 2. Carregar Categorias no <select>
+    async function carregarCategorias() {
+      const res = await fetch('/categorias');
+      const categorias = await res.json();
+      const select = document.getElementById('categoria_id');
+      select.innerHTML = '<option value="">Sem Categoria</option>';
+
+      categorias.forEach(c => {
+        const option = document.createElement('option');
+        option.value = c.id;
+        option.textContent = `${c.nome} (${c.tipo})`;
+        select.appendChild(option);
+      });
+    }
+
+    // 3. Carregar Histórico de Transações
+    async function carregarTransacoes(dataInicio = '', dataFim = '') {
+      let url = '/transacoes';
+      if (dataInicio && dataFim) {
+        url += `?dataInicio=${dataInicio}&dataFim=${dataFim}`;
+      }
+
+      const res = await fetch(url);
+      const transacoes = await res.json();
+      
+      // Guarda estado atual para exportação CSV
+      transacoesAtuais = transacoes;
+
+      const tbody = document.getElementById('tabelaTransacoes');
+      tbody.innerHTML = '';
+
+      transacoes.forEach(t => {
+        const tr = document.createElement('tr');
+        const valorNum = parseFloat(t.valor);
+        const valorFormatado = valorNum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const classeTipo = t.tipo === 'ENTRADA' ? 'texto-entrada' : 'texto-saida';
+        const dataFormatada = new Date(t.data).toLocaleDateString('pt-BR');
+
+        tr.innerHTML = `
+          <td>${dataFormatada}</td>
+          <td>${t.descricao}</td>
+          <td class="${classeTipo}">${t.tipo}</td>
+          <td>${t.categoria_nome || 'Geral'}</td>
+          <td class="${classeTipo}">${valorFormatado}</td>
+          <td><button onclick="deletarTransacao(${t.id})" class="btn-deletar">Excluir</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // 4. Cadastrar Categoria
+    document.getElementById('formCategoria').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const novaCategoria = {
+        nome: document.getElementById('cat_nome').value,
+        tipo: document.getElementById('cat_tipo').value
+      };
+
+      const res = await fetch('/categorias', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(novaCategoria)
+      });
+
+      if (res.ok) {
+        document.getElementById('formCategoria').reset();
+        carregarCategorias();
+      } else {
+        alert('Erro ao cadastrar categoria.');
+      }
+    });
+
+    // 5. Cadastrar Transação
+    document.getElementById('formTransacao').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const categoriaId = document.getElementById('categoria_id').value;
+
+      const transacao = {
+        descricao: document.getElementById('descricao').value,
+        valor: parseFloat(document.getElementById('valor').value),
+        tipo: document.getElementById('tipo').value,
+        categoria_id: categoriaId ? parseInt(categoriaId) : null
+      };
+
+      const res = await fetch('/transacoes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(transacao)
+      });
+
+      if (res.ok) {
+        document.getElementById('formTransacao').reset();
+        carregarResumo();
+        carregarTransacoes();
+      }
+    });
+
+    // 6. Excluir Transação
+    async function deletarTransacao(id) {
+      if (confirm('Deseja realmente excluir este lançamento?')) {
+        await fetch(`/transacoes/${id}`, { method: 'DELETE' });
+        carregarResumo();
+        carregarTransacoes();
+      }
+    }
+
+    // 7. Filtro de Datas
+    function aplicarFiltroPeriodo() {
+      const inicio = document.getElementById('filtro_inicio').value;
+      const fim = document.getElementById('filtro_fim').value;
+
+      if (inicio && fim) {
+        carregarResumo(inicio, fim);
+        carregarTransacoes(inicio, fim);
+      } else {
+        alert('Por favor, selecione ambas as datas (Início e Fim).');
+      }
+    }
+
+    function limparFiltro() {
+      document.getElementById('filtro_inicio').value = '';
+      document.getElementById('filtro_fim').value = '';
+      carregarResumo();
+      carregarTransacoes();
+    }
+
+    // 8. Exportação CSV
+    function exportarParaCSV() {
+      if (transacoesAtuais.length === 0) {
+        alert('Nenhum lançamento encontrado para exportação.');
+        return;
+      }
+
+      let csvContent = '\uFEFF'; // BOM para suporte UTF-8 no Excel
+      csvContent += 'Data;Descrição;Tipo;Categoria;Valor (R$)\n';
+
+      transacoesAtuais.forEach(t => {
+        const dataFormatada = new Date(t.data).toLocaleDateString('pt-BR');
+        const descricao = `"${t.descricao.replace(/"/g, '""')}"`;
+        const tipo = t.tipo;
+        const categoria = `"${(t.categoria_nome || 'Geral').replace(/"/g, '""')}"`;
+        const valor = parseFloat(t.valor).toFixed(2).replace('.', ',');
+
+        csvContent += `${dataFormatada};${descricao};${tipo};${categoria};${valor}\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      
+      const dataHoje = new Date().toISOString().split('T')[0];
+      link.setAttribute('href', url);
+      link.setAttribute('download', `relatorio_fluxo_caixa_${dataHoje}.csv`);
+      document.body.appendChild(link);
+      
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Inicialização do painel
+    carregarResumo();
+    carregarCategorias();
+    carregarTransacoes();
+  </script>
+</body>
+</html>
