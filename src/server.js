@@ -1,35 +1,29 @@
 const express = require('express');
-const path = require('path'); //Importa o módulo path
+const path = require('path');
 require('dotenv').config();
-const pool = require('./config/db');
 
-// Importar as rotas da aplicação
+// 1. Inicializar o app Express
+const app = express();
+
+// 2. Middlewares base
+app.use(express.json());
+
+// Servir os arquivos estáticos da pasta public
+app.use(express.static(path.join(__dirname, '../public')));
+
+// 3. Importar as rotas
 const categoriaRoutes = require('./routes/categoriaRoutes');
 const transacaoRoutes = require('./routes/transacaoRoutes');
 const fluxoCaixaRoutes = require('./routes/fluxoCaixaRoutes');
+const produtoRoutes = require('./routes/produtoRoutes');
 
-const app = express();
-
-app.use(express.json());
-
-// Servir a pasta public apontando para a raiz do projeto (subindo um nível a partir de src)
-app.use(express.static(path.join(__dirname, '../public')));
-
-// Registrar os endpoints base
+// 4. Registrar os endpoints da API
 app.use('/categorias', categoriaRoutes);
 app.use('/transacoes', transacaoRoutes);
 app.use('/fluxo-caixa', fluxoCaixaRoutes);
+app.use('/produtos', produtoRoutes);
 
-// Rota de teste
-// app.get('/', async (req, res) => {
-//   try {
-//     const result = await pool.query('SELECT NOW()');
-//     res.json({ message: 'API de Fluxo de Caixa rodando!', db_time: result.rows[0].now });
-//   } catch (err) {
-//     res.status(500).json({ error: 'Erro ao conectar no banco de dados', details: err.message });
-//   }
-// });
-
+// 5. Inicializar o servidor
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {

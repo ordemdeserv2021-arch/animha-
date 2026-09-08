@@ -1,52 +1,77 @@
 * {
-  box-sizing: border-box;
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #f4f6f8;
+  background-color: #f4f6f9;
   color: #333;
   padding: 30px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 h1 {
   margin-bottom: 25px;
   color: #1a252f;
+  font-size: 1.8rem;
 }
 
-h3 {
+h3, h4 {
   margin-bottom: 15px;
   color: #2c3e50;
-  font-size: 1.1rem;
 }
 
-/* CARDS DE SALDO */
+/* BARRA SUPERIOR E BADGES */
+.topo-barra {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.badge {
+  background: #2980b9;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  margin-left: 10px;
+  text-transform: uppercase;
+}
+
+/* CARDS DE RESUMO */
 .cards {
   display: flex;
   gap: 20px;
-  margin-bottom: 30px;
+  margin-bottom: 25px;
+  flex-wrap: wrap;
 }
 
 .card {
-  padding: 20px;
+  flex: 1;
+  min-width: 220px;
   background: #ffffff;
+  padding: 20px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  flex: 1;
 }
 
 .card small {
-  color: #7f8c8d;
   font-weight: 600;
-  text-transform: uppercase;
-  font-size: 0.75rem;
+  color: #7f8c8d;
 }
 
 .card h3 {
   font-size: 1.6rem;
-  margin-top: 8px;
+  margin-top: 10px;
   margin-bottom: 0;
 }
 
@@ -54,109 +79,157 @@ h3 {
 .card.saida h3 { color: #c0392b; }
 .card.saldo h3 { color: #2980b9; }
 
-/* SEÇÃO DE FORMULÁRIOS */
+/* SEÇÕES DE FORMULÁRIOS */
 .secao-formularios {
   display: flex;
   gap: 20px;
-  margin-bottom: 30px;
+  margin-bottom: 25px;
+  flex-wrap: wrap;
 }
 
 .card-form {
+  flex: 1;
+  min-width: 300px;
   background: #ffffff;
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  flex: 1;
+}
+
+.card-form-full {
+  background: #ffffff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  margin-bottom: 25px;
+}
+
+.flex-venda {
+  display: flex;
+  gap: 25px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.flex-venda form {
+  flex: 2;
+  min-width: 300px;
 }
 
 .field {
+  display: flex;
+  flex-direction: column;
   margin-bottom: 15px;
 }
 
-label {
-  display: block;
-  margin-bottom: 6px;
+.field label {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #34495e;
+  color: #555;
+  margin-bottom: 5px;
 }
 
-input, select, button {
-  width: 100%;
+input, select {
   padding: 10px;
-  border: 1px solid #dcdfe6;
-  border-radius: 6px;
+  border: 1px solid #cccccc;
+  border-radius: 5px;
   font-size: 0.95rem;
+  outline: none;
+  background-color: #fff;
+  width: 100%;
 }
 
 input:focus, select:focus {
-  outline: none;
   border-color: #3498db;
 }
 
-button {
-  background: #2980b9;
-  color: #ffffff;
-  border: none;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background 0.2s;
-  margin-top: 5px;
-}
-
-button:hover {
-  background: #1c5980;
-}
-
-.btn-categoria {
-  background: #27ae60;
-}
-
-.btn-categoria:hover {
-  background: #1e8449;
-}
-
-/* FILTRO DE DATAS */
-.filtro-container {
-  background: #ffffff;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  margin-bottom: 30px;
-}
-
-.campos-filtro {
-  display: flex;
+.grid-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 15px;
   align-items: flex-end;
 }
 
-.campos-filtro div {
+/* CALCULADORA */
+.calculadora-box {
+  background: #f8f9fa;
+  padding: 18px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  width: 240px;
   flex: 1;
+  min-width: 220px;
 }
 
-.btn-filtrar {
+#calcDisplay {
+  width: 100%;
+  text-align: right;
+  font-size: 1.3rem;
+  font-weight: bold;
+  margin-bottom: 12px;
+  background: #ffffff;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+}
+
+.calc-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.calc-grid button {
+  padding: 12px;
+  font-size: 1rem;
+  border-radius: 4px;
+}
+
+.btn-op { background: #e67e22; color: white; }
+.btn-op:hover { background: #d35400; }
+
+/* BOTÕES GERAIS */
+button {
+  border: none;
+  border-radius: 5px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s;
+  padding: 10px 15px;
+}
+
+.btn-categoria { background: #27ae60; color: white; width: 100%; }
+.btn-categoria:hover { background: #219150; }
+
+.btn-produto { background: #8e44ad; color: white; width: 100%; }
+.btn-produto:hover { background: #732d91; }
+
+.btn-registrar {
   background: #2980b9;
-  width: auto;
-  padding: 10px 20px;
+  color: white;
+  grid-column: 1 / -1;
+  padding: 12px;
+  font-size: 1rem;
 }
+.btn-registrar:hover { background: #1f6391; }
 
-.btn-limpar {
-  background: #7f8c8d;
-  width: auto;
-  padding: 10px 20px;
+.btn-limpar { background: #7f8c8d; color: white; }
+.btn-limpar:hover { background: #6c7a7d; }
+
+.btn-deletar {
+  background: #e74c3c;
+  color: white;
+  padding: 5px 10px;
+  font-size: 0.8rem;
 }
+.btn-deletar:hover { background: #c0392b; }
 
-.btn-limpar:hover {
-  background: #626d6d;
-}
-
-/* TABELA DE TRANSAÇÕES */
+/* TABELAS */
 .tabela-container {
   background: #ffffff;
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  margin-bottom: 25px;
 }
 
 table {
@@ -166,42 +239,37 @@ table {
 }
 
 th, td {
-  padding: 12px;
+  padding: 12px 15px;
   text-align: left;
-  border-bottom: 1px solid #ecf0f1;
+  border-bottom: 1px solid #eee;
   font-size: 0.95rem;
 }
 
 th {
   background-color: #f8f9fa;
   color: #7f8c8d;
-  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
 }
 
 .texto-entrada { color: #27ae60; font-weight: bold; }
 .texto-saida { color: #c0392b; font-weight: bold; }
 
-.btn-deletar {
-  background: #e74c3c;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  width: auto;
-  font-size: 0.8rem;
+/* MODAL DE LOGIN */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
 }
 
-.btn-deletar:hover {
-  background: #c0392b;
-}
-
-.btn-exportar {
-  background: #27ae60;
-  width: auto;
-  padding: 10px 20px;
-}
-
-.btn-exportar:hover {
-  background: #1e8449;
+.modal-card {
+  background: #fff;
+  padding: 30px;
+  border-radius: 8px;
+  width: 320px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
 }

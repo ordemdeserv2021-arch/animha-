@@ -11,7 +11,8 @@ async function listarTransacoes(req, res) {
         t.descricao, 
         t.valor, 
         t.tipo, 
-        t.data, 
+        t.data,
+        TO_CHAR(t.data, 'DD/MM/YYYY HH24:MI:SS') AS data_hora_formatada,
         c.nome AS categoria_nome 
       FROM transacoes t
       LEFT JOIN categorias c ON t.categoria_id = c.id
@@ -19,11 +20,11 @@ async function listarTransacoes(req, res) {
     const params = [];
 
     if (dataInicio && dataFim) {
-      query += ` WHERE t.data >= $1 AND t.data <= $2`;
+      query += ' WHERE t.data >= $1 AND t.data <= $2';
       params.push(`${dataInicio} 00:00:00`, `${dataFim} 23:59:59`);
     }
 
-    query += ` ORDER BY t.data DESC`;
+    query += ' ORDER BY t.data DESC';
 
     const result = await pool.query(query, params);
     return res.json(result.rows);

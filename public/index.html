@@ -1,100 +1,203 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
-  <title>Fluxo de Caixa</title>
+  <title>Fluxo de Caixa & PDV</title>
   <link rel="stylesheet" href="index.css">
 </head>
+
 <body>
 
-  <h1>Painel de Fluxo de Caixa</h1>
+  <!-- BARRA SUPERIOR DE SESSÃO E CAIXA -->
+  <div class="topo-barra">
+    <div>
+      <span id="labelUsuario">Operador: <strong>Não identificado</strong></span>
+      <span id="labelPerfil" class="badge">--</span>
+    </div>
+    <div class="status-caixa-container">
+      <span id="labelAberturaCaixa">Caixa Aberto às: <strong>--:--:--</strong></span>
+      <button onclick="fecharCaixaTurno()" class="btn-fechar-caixa">Fechar Caixa / Turno</button>
+    </div>
+    <button onclick="fazerLogout()" class="btn-limpar">Sair / Trocar Usuário</button>
+  </div>
+
+  <!-- MODAL DE LOGIN -->
+  <div id="modalLogin" class="modal-overlay">
+    <div class="modal-card">
+      <h2>Acesso ao Sistema (PDV)</h2>
+      <form id="formLogin">
+        <div class="field">
+          <label>Usuário</label>
+          <input type="text" id="login_usuario" required placeholder="Ex: admin ou operador">
+        </div>
+        <div class="field">
+          <label>Senha</label>
+          <input type="password" id="login_senha" required placeholder="******">
+        </div>
+        <button type="submit" class="btn-categoria">Entrar no Sistema</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- BARRA DE STATUS DO CAIXA E SESSÃO -->
+  <div class="topo-barra">
+    <div>
+      <span id="labelUsuario">Operador: <strong>Não identificado</strong></span>
+      <span id="labelPerfil" class="badge">--</span>
+    </div>
+    <button onclick="fazerLogout()" class="btn-limpar">Sair / Trocar Usuário</button>
+  </div>
+
+  <h1>Painel de Fluxo de Caixa & Gestão de Estoque</h1>
 
   <!-- CARDS DE SALDO -->
   <div class="cards">
     <div class="card entrada">
-      <small>Total Entradas</small>
+      <small>TOTAL ENTRADAS</small>
       <h3 id="entradas">R$ 0,00</h3>
     </div>
     <div class="card saida">
-      <small>Total Saídas</small>
+      <small>TOTAL SAÍDAS</small>
       <h3 id="saidas">R$ 0,00</h3>
     </div>
     <div class="card saldo">
-      <small>Saldo Total</small>
+      <small>SALDO TOTAL</small>
       <h3 id="saldo">R$ 0,00</h3>
     </div>
   </div>
 
-  <!-- SEÇÃO SUPERIOR: FORMULÁRIOS DE CADASTRO -->
+  <!-- FORMULÁRIOS LADO A LADO -->
   <div class="secao-formularios">
-    
-    <!-- FORMULÁRIO DE NOVA CATEGORIA -->
-    <form id="formCategoria" class="card-form">
-      <h3>Nova Categoria</h3>
-      <div class="field">
-        <label>Nome da Categoria</label>
-        <input type="text" id="cat_nome" required placeholder="Ex: Infraestrutura, Manutenção">
-      </div>
-      <div class="field">
-        <label>Tipo da Categoria</label>
-        <select id="cat_tipo" required>
-          <option value="RECEITA">Receita</option>
-          <option value="DESPESA">Despesa</option>
-        </select>
-      </div>
-      <button type="submit" class="btn-categoria">Cadastrar Categoria</button>
-    </form>
 
-    <!-- FORMULÁRIO DE NOVA TRANSAÇÃO -->
-    <form id="formTransacao" class="card-form">
-      <h3>Novo Lançamento</h3>
-      <div class="field">
-        <label>Descrição</label>
-        <input type="text" id="descricao" required placeholder="Ex: Manutenção de CFTV">
+    <!-- NOVO LANÇAMENTO / VENDA -->
+    <div class="card-form-full flex-venda">
+      <form id="formTransacao" class="grid-form">
+        <h3>Novo Lançamento / Venda (PDV)</h3>
+        <div class="field">
+          <label>Tipo</label>
+          <select id="tipo" required>
+            <option value="ENTRADA">Entrada (Receita)</option>
+            <option value="SAIDA">Saída (Despesa)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Vincular Produto</label>
+          <select id="produto_id" onchange="selecionarProdutoVenda()">
+            <option value="">-- Lançamento Manual sem Produto --</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Descrição</label>
+          <input type="text" id="descricao" required placeholder="Ex: Venda de Câmera">
+        </div>
+        <div class="field">
+          <label>Qtd. Vendida</label>
+          <input type="number" id="quantidade_venda" value="1" min="1" onchange="recalcularValorVenda()">
+        </div>
+        <div class="field">
+          <label>Valor (R$)</label>
+          <input type="number" step="0.01" id="valor" required placeholder="0.00">
+        </div>
+        <div class="field">
+          <label>Categoria</label>
+          <select id="categoria_id">
+            <option value="">Sem Categoria</option>
+          </select>
+        </div>
+        <button type="submit" class="btn-registrar">Registrar Venda e Atualizar Estoque</button>
+      </form>
+
+      <!-- CALCULADORA ACOPLADA -->
+      <div class="calculadora-box">
+        <h4>Calculadora Rápida</h4>
+        <input type="text" id="calcDisplay" readonly value="0">
+        <div class="calc-grid">
+          <button type="button" onclick="calcNum('7')">7</button>
+          <button type="button" onclick="calcNum('8')">8</button>
+          <button type="button" onclick="calcNum('9')">9</button>
+          <button type="button" onclick="calcOp('+')" class="btn-op">+</button>
+          <button type="button" onclick="calcNum('4')">4</button>
+          <button type="button" onclick="calcNum('5')">5</button>
+          <button type="button" onclick="calcNum('6')">6</button>
+          <button type="button" onclick="calcOp('-')" class="btn-op">-</button>
+          <button type="button" onclick="calcNum('1')">1</button>
+          <button type="button" onclick="calcNum('2')">2</button>
+          <button type="button" onclick="calcNum('3')">3</button>
+          <button type="button" onclick="calcOp('*')" class="btn-op">*</button>
+          <button type="button" onclick="calcLimpar()" class="btn-limpar">C</button>
+          <button type="button" onclick="calcNum('0')">0</button>
+          <button type="button" onclick="calcIgual()" class="btn-categoria">=</button>
+          <button type="button" onclick="calcOp('/')" class="btn-op">/</button>
+        </div>
       </div>
-      <div class="field">
-        <label>Valor (R$)</label>
-        <input type="number" step="0.01" id="valor" required placeholder="0.00">
-      </div>
-      <div class="field">
-        <label>Tipo</label>
-        <select id="tipo" required>
-          <option value="ENTRADA">Entrada (Receita)</option>
-          <option value="SAIDA">Saída (Despesa)</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Categoria</label>
-        <select id="categoria_id">
-          <option value="">Sem Categoria</option>
-        </select>
-      </div>
-      <button type="submit">Registrar Lançamento</button>
-    </form>
+    </div>
+
+    <!-- SEÇÃO MASTER: CATEGORIA E PRODUTO -->
+    <div id="secaoMasterForms" class="secao-formularios">
+      <form id="formCategoria" class="card-form">
+        <h3>Nova Categoria</h3>
+        <div class="field">
+          <label>Nome da Categoria</label>
+          <input type="text" id="cat_nome" required placeholder="Ex: CFTV, Alarme">
+        </div>
+        <div class="field">
+          <label>Tipo</label>
+          <select id="cat_tipo" required>
+            <option value="RECEITA">Receita</option>
+            <option value="DESPESA">Despesa</option>
+          </select>
+        </div>
+        <button type="submit" class="btn-categoria">Cadastrar Categoria</button>
+      </form>
+
+      <form id="formProduto" class="card-form">
+        <h3>Cadastrar Produto no Estoque</h3>
+        <div class="field">
+          <label>Nome do Produto</label>
+          <input type="text" id="prod_nome" required placeholder="Ex: Câmera Dome 1080p">
+        </div>
+        <div class="field">
+          <label>Preço Venda (R$)</label>
+          <input type="number" step="0.01" id="prod_preco_venda" required placeholder="0.00">
+        </div>
+        <div class="field">
+          <label>Quantidade Estoque</label>
+          <input type="number" id="prod_qtd" required placeholder="10">
+        </div>
+        <div class="field">
+          <label>Categoria</label>
+          <select id="prod_categoria_id">
+            <option value="">Sem Categoria</option>
+          </select>
+        </div>
+        <button type="submit" class="btn-produto">Cadastrar Produto</button>
+      </form>
+    </div>
 
   </div>
 
-  <!-- FILTRO DE DATAS E EXPORTAÇÃO -->
-  <div class="filtro-container">
-    <h3>Filtrar Lançamentos por Período</h3>
-    <div class="campos-filtro">
-      <div>
-        <label>Data Início:</label>
-        <input type="date" id="filtro_inicio">
-      </div>
-      <div>
-        <label>Data Fim:</label>
-        <input type="date" id="filtro_fim">
-      </div>
-      <button onclick="aplicarFiltroPeriodo()" class="btn-filtrar">Filtrar</button>
-      <button onclick="limparFiltro()" class="btn-limpar">Limpar Filtro</button>
-      <button onclick="exportarParaCSV()" class="btn-exportar">Exportar CSV</button>
-    </div>
+  <!-- TABELA DE ESTOQUE -->
+  <div class="tabela-container">
+    <h3>Consulta de Estoque de Produtos</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Produto</th>
+          <th>Categoria</th>
+          <th>Preço Venda</th>
+          <th>Qtd. Disponível</th>
+          <th class="col-acoes">Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tabelaProdutos"></tbody>
+    </table>
   </div>
 
   <!-- HISTÓRICO DE TRANSAÇÕES -->
   <div class="tabela-container">
-    <h3>Histórico de Lançamentos</h3>
+    <h3>Histórico de Lançamentos Financeiros</h3>
     <table>
       <thead>
         <tr>
@@ -103,71 +206,124 @@
           <th>Tipo</th>
           <th>Categoria</th>
           <th>Valor</th>
-          <th>Ações</th>
+          <th class="col-acoes">Ações</th>
         </tr>
       </thead>
-      <tbody id="tabelaTransacoes">
-        <!-- Linhas inseridas via JS -->
-      </tbody>
+      <tbody id="tabelaTransacoes"></tbody>
     </table>
   </div>
 
   <script>
-    // Estado global das transações para exportação
-    let transacoesAtuais = [];
+    let usuarioLogado = null;
+    let listaProdutos = [];
 
-    // 1. Carregar Resumo do Caixa
-    async function carregarResumo(dataInicio = '', dataFim = '') {
-      let url = '/fluxo-caixa/resumo';
-      if (dataInicio && dataFim) {
-        url += `?dataInicio=${dataInicio}&dataFim=${dataFim}`;
+    // LOGIN SIMPLIFICADO
+    document.getElementById('formLogin').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const user = document.getElementById('login_usuario').value.toLowerCase();
+
+      if (user === 'admin') {
+        usuarioLogado = { nome: 'Carlos Master', perfil: 'MASTER', pode_excluir: true };
+      } else {
+        usuarioLogado = { nome: 'Operador Caixa', perfil: 'OPERADOR', pode_excluir: false };
       }
 
-      const res = await fetch(url);
+      document.getElementById('modalLogin').style.display = 'none';
+      document.getElementById('labelUsuario').innerHTML = `Operador: <strong>${usuarioLogado.nome}</strong>`;
+      document.getElementById('labelPerfil').innerText = usuarioLogado.perfil;
+
+      aplicarPermissoes();
+    });
+
+    function fazerLogout() {
+      usuarioLogado = null;
+      document.getElementById('modalLogin').style.display = 'flex';
+    }
+
+    function aplicarPermissoes() {
+      const colAcoes = document.querySelectorAll('.col-acoes');
+      const masterForms = document.getElementById('secaoMasterForms');
+
+      if (usuarioLogado && usuarioLogado.perfil === 'OPERADOR') {
+        masterForms.style.display = 'none';
+        colAcoes.forEach(el => el.style.display = 'none');
+      } else {
+        masterForms.style.display = 'flex';
+        colAcoes.forEach(el => el.style.display = 'table-cell');
+      }
+
+      carregarProdutos();
+      carregarTransacoes();
+    }
+
+    // LÓGICA DA CALCULADORA
+    let calcExpr = '';
+    function calcNum(val) { calcExpr += val; document.getElementById('calcDisplay').value = calcExpr; }
+    function calcOp(op) { calcExpr += ` ${op} `; document.getElementById('calcDisplay').value = calcExpr; }
+    function calcLimpar() { calcExpr = ''; document.getElementById('calcDisplay').value = '0'; }
+    function calcIgual() {
+      try {
+        calcExpr = eval(calcExpr).toString();
+        document.getElementById('calcDisplay').value = calcExpr;
+      } catch {
+        document.getElementById('calcDisplay').value = 'Erro';
+        calcExpr = '';
+      }
+    }
+
+    // CARREGAR DADOS
+    async function carregarResumo() {
+      const res = await fetch('/fluxo-caixa/resumo');
       const data = await res.json();
-      
       document.getElementById('entradas').innerText = `R$ ${data.totalEntradas}`;
       document.getElementById('saidas').innerText = `R$ ${data.totalSaidas}`;
       document.getElementById('saldo').innerText = `R$ ${data.saldoTotal}`;
     }
 
-    // 2. Carregar Categorias no <select>
-    async function carregarCategorias() {
-      const res = await fetch('/categorias');
-      const categorias = await res.json();
-      const select = document.getElementById('categoria_id');
-      select.innerHTML = '<option value="">Sem Categoria</option>';
+    async function carregarProdutos() {
+      const res = await fetch('/produtos');
+      listaProdutos = await res.json();
 
-      categorias.forEach(c => {
+      const tbody = document.getElementById('tabelaProdutos');
+      const selectProd = document.getElementById('produto_id');
+
+      tbody.innerHTML = '';
+      selectProd.innerHTML = '<option value="">-- Lançamento Manual sem Produto --</option>';
+
+      listaProdutos.forEach(p => {
+        const tr = document.createElement('tr');
+        const precoFormatado = parseFloat(p.preco_venda).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const acaoExcluir = (usuarioLogado && usuarioLogado.pode_excluir) ? `<button onclick="deletarProduto(${p.id})" class="btn-deletar">Excluir</button>` : '';
+
+        tr.innerHTML = `
+          <td>${p.id}</td>
+          <td><strong>${p.nome}</strong></td>
+          <td>${p.categoria_nome || 'Geral'}</td>
+          <td>${precoFormatado}</td>
+          <td><strong>${p.quantidade_estoque} un</strong></td>
+          <td class="col-acoes">${acaoExcluir}</td>
+        `;
+        tbody.appendChild(tr);
+
         const option = document.createElement('option');
-        option.value = c.id;
-        option.textContent = `${c.nome} (${c.tipo})`;
-        select.appendChild(option);
+        option.value = p.id;
+        option.textContent = `${p.nome} - ${precoFormatado} (Estoque: ${p.quantidade_estoque})`;
+        selectProd.appendChild(option);
       });
     }
 
-    // 3. Carregar Histórico de Transações
-    async function carregarTransacoes(dataInicio = '', dataFim = '') {
-      let url = '/transacoes';
-      if (dataInicio && dataFim) {
-        url += `?dataInicio=${dataInicio}&dataFim=${dataFim}`;
-      }
-
-      const res = await fetch(url);
+    async function carregarTransacoes() {
+      const res = await fetch('/transacoes');
       const transacoes = await res.json();
-      
-      // Guarda estado atual para exportação CSV
-      transacoesAtuais = transacoes;
-
       const tbody = document.getElementById('tabelaTransacoes');
       tbody.innerHTML = '';
 
       transacoes.forEach(t => {
         const tr = document.createElement('tr');
-        const valorNum = parseFloat(t.valor);
-        const valorFormatado = valorNum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const valorFormatado = parseFloat(t.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         const classeTipo = t.tipo === 'ENTRADA' ? 'texto-entrada' : 'texto-saida';
         const dataFormatada = new Date(t.data).toLocaleDateString('pt-BR');
+        const acaoExcluir = (usuarioLogado && usuarioLogado.pode_excluir) ? `<button onclick="deletarTransacao(${t.id})" class="btn-deletar">Excluir</button>` : '';
 
         tr.innerHTML = `
           <td>${dataFormatada}</td>
@@ -175,127 +331,100 @@
           <td class="${classeTipo}">${t.tipo}</td>
           <td>${t.categoria_nome || 'Geral'}</td>
           <td class="${classeTipo}">${valorFormatado}</td>
-          <td><button onclick="deletarTransacao(${t.id})" class="btn-deletar">Excluir</button></td>
+          <td class="col-acoes">${acaoExcluir}</td>
         `;
+        tbody.appendChild(tr);
+      });
+      // Dentro da função carregarTransacoes():
+      transacoes.forEach(t => {
+        const tr = document.createElement('tr');
+        const valorFormatado = parseFloat(t.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const classeTipo = t.tipo === 'ENTRADA' ? 'texto-entrada' : 'texto-saida';
+
+        // Exibe a Data e Hora exatas gravadas no banco
+        const dataHora = t.data_hora_formatada || new Date(t.data).toLocaleString('pt-BR');
+
+        tr.innerHTML = `
+    <td>${dataHora}</td>
+    <td>${t.descricao}</td>
+    <td class="${classeTipo}">${t.tipo}</td>
+    <td>${t.categoria_nome || 'Geral'}</td>
+    <td class="${classeTipo}">${valorFormatado}</td>
+    <td class="col-acoes">${acaoExcluir}</td>
+  `;
         tbody.appendChild(tr);
       });
     }
 
-    // 4. Cadastrar Categoria
-    document.getElementById('formCategoria').addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const novaCategoria = {
-        nome: document.getElementById('cat_nome').value,
-        tipo: document.getElementById('cat_tipo').value
-      };
-
-      const res = await fetch('/categorias', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(novaCategoria)
-      });
-
-      if (res.ok) {
-        document.getElementById('formCategoria').reset();
-        carregarCategorias();
-      } else {
-        alert('Erro ao cadastrar categoria.');
+    function selecionarProdutoVenda() {
+      const prodId = document.getElementById('produto_id').value;
+      if (!prodId) return;
+      const prod = listaProdutos.find(p => p.id == prodId);
+      if (prod) {
+        document.getElementById('descricao').value = `Venda: ${prod.nome}`;
+        document.getElementById('categoria_id').value = prod.categoria_id || '';
+        recalcularValorVenda();
       }
-    });
+    }
 
-    // 5. Cadastrar Transação
+    function recalcularValorVenda() {
+      const prodId = document.getElementById('produto_id').value;
+      const qtd = parseInt(document.getElementById('quantidade_venda').value) || 1;
+      if (prodId) {
+        const prod = listaProdutos.find(p => p.id == prodId);
+        if (prod) {
+          const total = parseFloat(prod.preco_venda) * qtd;
+          document.getElementById('valor').value = total.toFixed(2);
+        }
+      }
+    }
+
+    function registrarHoraAbertura() {
+      const agora = new Date().toLocaleTimeString('pt-BR');
+      document.getElementById('labelAberturaCaixa').innerHTML = `Caixa Aberto às: <strong>${agora}</strong>`;
+    }
+
+    function fecharCaixaTurno() {
+      const totalEntradas = document.getElementById('entradas').innerText;
+      const saldoFinal = document.getElementById('saldo').innerText;
+      const horaFechamento = new Date().toLocaleTimeString('pt-BR');
+
+      alert(`--- RESUMO DE FECHAMENTO DE CAIXA ---\n\nOperador: ${usuarioLogado ? usuarioLogado.nome : 'Operador'}\nHora de Fechamento: ${horaFechamento}\nTotal de Entradas: ${totalEntradas}\nSaldo em Caixa: ${saldoFinal}\n\nCaixa encerrado com sucesso!`);
+
+      fazerLogout();
+    }
+
     document.getElementById('formTransacao').addEventListener('submit', async (e) => {
       e.preventDefault();
-
-      const categoriaId = document.getElementById('categoria_id').value;
-
-      const transacao = {
-        descricao: document.getElementById('descricao').value,
-        valor: parseFloat(document.getElementById('valor').value),
-        tipo: document.getElementById('tipo').value,
-        categoria_id: categoriaId ? parseInt(categoriaId) : null
-      };
+      const prodId = document.getElementById('produto_id').value;
+      const catId = document.getElementById('categoria_id').value;
 
       const res = await fetch('/transacoes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(transacao)
+        body: JSON.stringify({
+          descricao: document.getElementById('descricao').value,
+          valor: parseFloat(document.getElementById('valor').value),
+          tipo: document.getElementById('tipo').value,
+          categoria_id: catId ? parseInt(catId) : null,
+          produto_id: prodId ? parseInt(prodId) : null,
+          quantidade: parseInt(document.getElementById('quantidade_venda').value) || 1
+        })
       });
 
       if (res.ok) {
         document.getElementById('formTransacao').reset();
         carregarResumo();
         carregarTransacoes();
+        carregarProdutos();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Erro ao registrar venda');
       }
     });
 
-    // 6. Excluir Transação
-    async function deletarTransacao(id) {
-      if (confirm('Deseja realmente excluir este lançamento?')) {
-        await fetch(`/transacoes/${id}`, { method: 'DELETE' });
-        carregarResumo();
-        carregarTransacoes();
-      }
-    }
-
-    // 7. Filtro de Datas
-    function aplicarFiltroPeriodo() {
-      const inicio = document.getElementById('filtro_inicio').value;
-      const fim = document.getElementById('filtro_fim').value;
-
-      if (inicio && fim) {
-        carregarResumo(inicio, fim);
-        carregarTransacoes(inicio, fim);
-      } else {
-        alert('Por favor, selecione ambas as datas (Início e Fim).');
-      }
-    }
-
-    function limparFiltro() {
-      document.getElementById('filtro_inicio').value = '';
-      document.getElementById('filtro_fim').value = '';
-      carregarResumo();
-      carregarTransacoes();
-    }
-
-    // 8. Exportação CSV
-    function exportarParaCSV() {
-      if (transacoesAtuais.length === 0) {
-        alert('Nenhum lançamento encontrado para exportação.');
-        return;
-      }
-
-      let csvContent = '\uFEFF'; // BOM para suporte UTF-8 no Excel
-      csvContent += 'Data;Descrição;Tipo;Categoria;Valor (R$)\n';
-
-      transacoesAtuais.forEach(t => {
-        const dataFormatada = new Date(t.data).toLocaleDateString('pt-BR');
-        const descricao = `"${t.descricao.replace(/"/g, '""')}"`;
-        const tipo = t.tipo;
-        const categoria = `"${(t.categoria_nome || 'Geral').replace(/"/g, '""')}"`;
-        const valor = parseFloat(t.valor).toFixed(2).replace('.', ',');
-
-        csvContent += `${dataFormatada};${descricao};${tipo};${categoria};${valor}\n`;
-      });
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      
-      const dataHoje = new Date().toISOString().split('T')[0];
-      link.setAttribute('href', url);
-      link.setAttribute('download', `relatorio_fluxo_caixa_${dataHoje}.csv`);
-      document.body.appendChild(link);
-      
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    // Inicialização do painel
     carregarResumo();
-    carregarCategorias();
-    carregarTransacoes();
   </script>
 </body>
+
 </html>
