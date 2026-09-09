@@ -9,21 +9,21 @@
 
 <body>
 
-  <!-- BARRA SUPERIOR DE SESSÃO E CAIXA -->
+  <!-- BARRA SUPERIOR ÚNICA DE SESSÃO -->
   <div class="topo-barra">
     <div>
       <span id="labelUsuario">Operador: <strong>Não identificado</strong></span>
       <span id="labelPerfil" class="badge">--</span>
     </div>
     <div class="status-caixa-container">
-      <span id="labelAberturaCaixa">Caixa Aberto às: <strong>--:--:--</strong></span>
+      <span id="labelAberturaCaixa">Sessão iniciada às: <strong>--:--:--</strong></span>
       <button onclick="fecharCaixaTurno()" class="btn-fechar-caixa">Fechar Caixa / Turno</button>
     </div>
     <button onclick="fazerLogout()" class="btn-limpar">Sair / Trocar Usuário</button>
   </div>
 
   <!-- MODAL DE LOGIN -->
-  <div id="modalLogin" class="modal-overlay">
+  <div id="modalLogin" class="modal-overlay" style="display: flex;">
     <div class="modal-card">
       <h2>Acesso ao Sistema (PDV)</h2>
       <form id="formLogin">
@@ -38,15 +38,6 @@
         <button type="submit" class="btn-categoria">Entrar no Sistema</button>
       </form>
     </div>
-  </div>
-
-  <!-- BARRA DE STATUS DO CAIXA E SESSÃO -->
-  <div class="topo-barra">
-    <div>
-      <span id="labelUsuario">Operador: <strong>Não identificado</strong></span>
-      <span id="labelPerfil" class="badge">--</span>
-    </div>
-    <button onclick="fazerLogout()" class="btn-limpar">Sair / Trocar Usuário</button>
   </div>
 
   <h1>Painel de Fluxo de Caixa & Gestão de Estoque</h1>
@@ -70,7 +61,7 @@
   <!-- FORMULÁRIOS LADO A LADO -->
   <div class="secao-formularios">
 
-    <!-- NOVO LANÇAMENTO / VENDA -->
+    <!-- NOVO LANÇAMENTO / VENDA (OPERADOR & MASTER) -->
     <div class="card-form-full flex-venda">
       <form id="formTransacao" class="grid-form">
         <h3>Novo Lançamento / Venda (PDV)</h3>
@@ -133,8 +124,10 @@
       </div>
     </div>
 
-    <!-- SEÇÃO MASTER: CATEGORIA E PRODUTO -->
-    <div id="secaoMasterForms" class="secao-formularios">
+    <!-- SEÇÃO EXCLUSIVA MASTER: CATEGORIA, PRODUTO E CADASTRO DE OPERADORES -->
+    <div id="secaoMasterForms" class="secao-formularios" style="display: none;">
+
+      <!-- 1. FORMULÁRIO DE CATEGORIA -->
       <form id="formCategoria" class="card-form">
         <h3>Nova Categoria</h3>
         <div class="field">
@@ -151,6 +144,7 @@
         <button type="submit" class="btn-categoria">Cadastrar Categoria</button>
       </form>
 
+      <!-- 2. FORMULÁRIO DE PRODUTO -->
       <form id="formProduto" class="card-form">
         <h3>Cadastrar Produto no Estoque</h3>
         <div class="field">
@@ -173,6 +167,56 @@
         </div>
         <button type="submit" class="btn-produto">Cadastrar Produto</button>
       </form>
+
+      <!-- 3. FORMULÁRIO DE OPERADOR / USUÁRIO -->
+      <form id="formUsuario" class="card-form">
+        <h3>Cadastrar Operador / Usuário</h3>
+        <div class="field">
+          <label>Nome Completo</label>
+          <input type="text" id="usr_nome" required placeholder="Ex: João da Silva">
+        </div>
+        <div class="field">
+          <label>Login de Acesso</label>
+          <input type="text" id="usr_login" required placeholder="Ex: joao.caixa">
+        </div>
+        <div class="field">
+          <label>Senha</label>
+          <input type="password" id="usr_senha" required placeholder="******">
+        </div>
+        <div class="field">
+          <label>Perfil</label>
+          <select id="usr_perfil" required>
+            <option value="OPERADOR">Operador de Caixa</option>
+            <option value="MASTER">Master (Admin)</option>
+          </select>
+        </div>
+        <div class="field checkbox-field">
+          <label>
+            <input type="checkbox" id="usr_pode_excluir"> Pode excluir vendas/produtos
+          </label>
+        </div>
+        <button type="submit" class="btn-categoria" style="background-color: #27ae60; color: white;">Cadastrar Operador</button>
+      </form>
+
+    </div>
+
+    <!-- TABELA DE GESTÃO DE OPERADORES (MÓDULO MASTER) -->
+    <div id="secaoTabelaUsuarios" class="tabela-container" style="display: none;">
+      <h3>Gerenciamento de Operadores & Permissões</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nome</th>
+            <th>Login</th>
+            <th>Perfil</th>
+            <th>Pode Excluir?</th>
+            <th>Último Acesso</th>
+            <th class="col-acoes">Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaUsuarios"></tbody>
+      </table>
     </div>
 
   </div>
@@ -217,67 +261,83 @@
     let usuarioLogado = null;
     let listaProdutos = [];
 
-    // LOGIN SIMPLIFICADO
-    document.getElementById('formLogin').addEventListener('submit', (e) => {
+    // 1. AUTENTICAÇÃO E LOGIN
+    document.getElementById('formLogin').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const user = document.getElementById('login_usuario').value.toLowerCase();
 
-      if (user === 'admin') {
-        usuarioLogado = { nome: 'Carlos Master', perfil: 'MASTER', pode_excluir: true };
-      } else {
-        usuarioLogado = { nome: 'Operador Caixa', perfil: 'OPERADOR', pode_excluir: false };
+      const loginInput = document.getElementById('login_usuario').value;
+      const senhaInput = document.getElementById('login_senha').value;
+
+      try {
+        const res = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ login: loginInput, senha: senhaInput })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          usuarioLogado = data.usuario;
+
+          document.getElementById('modalLogin').style.display = 'none';
+
+          document.getElementById('labelUsuario').innerHTML = `Operador: <strong>${usuarioLogado.nome}</strong>`;
+          document.getElementById('labelPerfil').innerText = usuarioLogado.perfil;
+          document.getElementById('labelAberturaCaixa').innerHTML = `Sessão iniciada às: <strong>${usuarioLogado.horaLogin}</strong>`;
+
+          aplicarPermissoes();
+          carregarResumoTurno();
+          carregarProdutos();
+          carregarTransacoes();
+        } else {
+          alert(data.error || 'Falha ao autenticar');
+        }
+      } catch (err) {
+        console.error('Erro no login:', err);
       }
-
-      document.getElementById('modalLogin').style.display = 'none';
-      document.getElementById('labelUsuario').innerHTML = `Operador: <strong>${usuarioLogado.nome}</strong>`;
-      document.getElementById('labelPerfil').innerText = usuarioLogado.perfil;
-
-      aplicarPermissoes();
     });
+
+    // 2. FUNÇÃO DE LOGOUT / TROCA DE OPERADOR
+    function zerarCardsInterface() {
+      document.getElementById('entradas').innerText = 'R$ 0,00';
+      document.getElementById('saidas').innerText = 'R$ 0,00';
+      document.getElementById('saldo').innerText = 'R$ 0,00';
+    }
 
     function fazerLogout() {
       usuarioLogado = null;
+
+      zerarCardsInterface();
+      document.getElementById('labelUsuario').innerHTML = `Operador: <strong>Não identificado</strong>`;
+      document.getElementById('labelPerfil').innerText = '--';
+      document.getElementById('labelAberturaCaixa').innerHTML = `Sessão iniciada às: <strong>--:--:--</strong>`;
+
+      document.getElementById('login_usuario').value = '';
+      document.getElementById('login_senha').value = '';
+
+      aplicarPermissoes();
+
       document.getElementById('modalLogin').style.display = 'flex';
     }
 
-    function aplicarPermissoes() {
-      const colAcoes = document.querySelectorAll('.col-acoes');
-      const masterForms = document.getElementById('secaoMasterForms');
-
-      if (usuarioLogado && usuarioLogado.perfil === 'OPERADOR') {
-        masterForms.style.display = 'none';
-        colAcoes.forEach(el => el.style.display = 'none');
-      } else {
-        masterForms.style.display = 'flex';
-        colAcoes.forEach(el => el.style.display = 'table-cell');
+    // 3. CARREGAMENTO E RESUMO DO TURNO
+    async function carregarResumoTurno() {
+      if (!usuarioLogado || !usuarioLogado.horaLogin) {
+        zerarCardsInterface();
+        return;
       }
 
-      carregarProdutos();
-      carregarTransacoes();
-    }
-
-    // LÓGICA DA CALCULADORA
-    let calcExpr = '';
-    function calcNum(val) { calcExpr += val; document.getElementById('calcDisplay').value = calcExpr; }
-    function calcOp(op) { calcExpr += ` ${op} `; document.getElementById('calcDisplay').value = calcExpr; }
-    function calcLimpar() { calcExpr = ''; document.getElementById('calcDisplay').value = '0'; }
-    function calcIgual() {
       try {
-        calcExpr = eval(calcExpr).toString();
-        document.getElementById('calcDisplay').value = calcExpr;
-      } catch {
-        document.getElementById('calcDisplay').value = 'Erro';
-        calcExpr = '';
-      }
-    }
+        const res = await fetch(`/fluxo-caixa/resumo?desde=${encodeURIComponent(usuarioLogado.horaLogin)}`);
+        const data = await res.json();
 
-    // CARREGAR DADOS
-    async function carregarResumo() {
-      const res = await fetch('/fluxo-caixa/resumo');
-      const data = await res.json();
-      document.getElementById('entradas').innerText = `R$ ${data.totalEntradas}`;
-      document.getElementById('saidas').innerText = `R$ ${data.totalSaidas}`;
-      document.getElementById('saldo').innerText = `R$ ${data.saldoTotal}`;
+        document.getElementById('entradas').innerText = `R$ ${data.totalEntradas}`;
+        document.getElementById('saidas').innerText = `R$ ${data.totalSaidas}`;
+        document.getElementById('saldo').innerText = `R$ ${data.saldoTotal}`;
+      } catch (err) {
+        console.error('Erro ao buscar resumo:', err);
+      }
     }
 
     async function carregarProdutos() {
@@ -322,11 +382,11 @@
         const tr = document.createElement('tr');
         const valorFormatado = parseFloat(t.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         const classeTipo = t.tipo === 'ENTRADA' ? 'texto-entrada' : 'texto-saida';
-        const dataFormatada = new Date(t.data).toLocaleDateString('pt-BR');
+        const dataHora = t.data_hora_formatada || new Date(t.data).toLocaleString('pt-BR');
         const acaoExcluir = (usuarioLogado && usuarioLogado.pode_excluir) ? `<button onclick="deletarTransacao(${t.id})" class="btn-deletar">Excluir</button>` : '';
 
         tr.innerHTML = `
-          <td>${dataFormatada}</td>
+          <td>${dataHora}</td>
           <td>${t.descricao}</td>
           <td class="${classeTipo}">${t.tipo}</td>
           <td>${t.categoria_nome || 'Geral'}</td>
@@ -335,35 +395,88 @@
         `;
         tbody.appendChild(tr);
       });
-      // Dentro da função carregarTransacoes():
-      transacoes.forEach(t => {
-        const tr = document.createElement('tr');
-        const valorFormatado = parseFloat(t.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-        const classeTipo = t.tipo === 'ENTRADA' ? 'texto-entrada' : 'texto-saida';
+    }
 
-        // Exibe a Data e Hora exatas gravadas no banco
-        const dataHora = t.data_hora_formatada || new Date(t.data).toLocaleString('pt-BR');
+    // 4. MÓDULO MASTER - OPERADORES
+    async function carregarUsuarios() {
+      if (!usuarioLogado || usuarioLogado.perfil !== 'MASTER') return;
+
+      const res = await fetch('/usuarios');
+      const usuarios = await res.json();
+      const tbody = document.getElementById('tabelaUsuarios');
+      if (!tbody) return;
+
+      tbody.innerHTML = '';
+
+      usuarios.forEach(u => {
+        const tr = document.createElement('tr');
+        const checked = u.pode_excluir ? 'checked' : '';
+        const ultimoLogin = u.ultimo_login || 'Nunca acessou';
 
         tr.innerHTML = `
-    <td>${dataHora}</td>
-    <td>${t.descricao}</td>
-    <td class="${classeTipo}">${t.tipo}</td>
-    <td>${t.categoria_nome || 'Geral'}</td>
-    <td class="${classeTipo}">${valorFormatado}</td>
-    <td class="col-acoes">${acaoExcluir}</td>
-  `;
+          <td>${u.id}</td>
+          <td><strong>${u.nome}</strong></td>
+          <td>${u.login}</td>
+          <td><span class="badge">${u.perfil}</span></td>
+          <td>
+            <input type="checkbox" ${checked} onchange="alterarPermissaoUsuario(${u.id}, this.checked, '${u.perfil}')"> Excluir
+          </td>
+          <td>${ultimoLogin}</td>
+          <td class="col-acoes">
+            <button onclick="carregarUsuarios()" class="btn-limpar">Atualizar</button>
+          </td>
+        `;
         tbody.appendChild(tr);
       });
     }
 
-    function selecionarProdutoVenda() {
-      const prodId = document.getElementById('produto_id').value;
-      if (!prodId) return;
-      const prod = listaProdutos.find(p => p.id == prodId);
-      if (prod) {
-        document.getElementById('descricao').value = `Venda: ${prod.nome}`;
-        document.getElementById('categoria_id').value = prod.categoria_id || '';
-        recalcularValorVenda();
+    async function alterarPermissaoUsuario(id, podeExcluir, perfil) {
+      await fetch(`/usuarios/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pode_excluir: podeExcluir, perfil: perfil })
+      });
+    }
+
+    const formUsuarioEl = document.getElementById('formUsuario');
+    if (formUsuarioEl) {
+      formUsuarioEl.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const res = await fetch('/usuarios', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nome: document.getElementById('usr_nome').value,
+            login: document.getElementById('usr_login').value,
+            senha: document.getElementById('usr_senha').value,
+            perfil: document.getElementById('usr_perfil').value,
+            pode_excluir: document.getElementById('usr_pode_excluir').checked
+          })
+        });
+
+        if (res.ok) {
+          document.getElementById('formUsuario').reset();
+          alert('Operador cadastrado com sucesso!');
+          carregarUsuarios();
+        } else {
+          const err = await res.json();
+          alert(err.error || 'Erro ao cadastrar operador');
+        }
+      });
+    }
+
+    function aplicarPermissoes() {
+      const secaoMaster = document.getElementById('secaoMasterForms');
+      const secaoTabelaUsr = document.getElementById('secaoTabelaUsuarios');
+
+      if (usuarioLogado && usuarioLogado.perfil === 'MASTER') {
+        if (secaoMaster) secaoMaster.style.display = 'flex';
+        if (secaoTabelaUsr) secaoTabelaUsr.style.display = 'block';
+        carregarUsuarios();
+      } else {
+        if (secaoMaster) secaoMaster.style.display = 'none';
+        if (secaoTabelaUsr) secaoTabelaUsr.style.display = 'none';
       }
     }
 
@@ -377,11 +490,6 @@
           document.getElementById('valor').value = total.toFixed(2);
         }
       }
-    }
-
-    function registrarHoraAbertura() {
-      const agora = new Date().toLocaleTimeString('pt-BR');
-      document.getElementById('labelAberturaCaixa').innerHTML = `Caixa Aberto às: <strong>${agora}</strong>`;
     }
 
     function fecharCaixaTurno() {
@@ -414,7 +522,7 @@
 
       if (res.ok) {
         document.getElementById('formTransacao').reset();
-        carregarResumo();
+        carregarResumoTurno();
         carregarTransacoes();
         carregarProdutos();
       } else {
@@ -423,7 +531,20 @@
       }
     });
 
-    carregarResumo();
+    // LÓGICA DA CALCULADORA
+    let calcExpr = '';
+    function calcNum(val) { calcExpr += val; document.getElementById('calcDisplay').value = calcExpr; }
+    function calcOp(op) { calcExpr += ` ${op} `; document.getElementById('calcDisplay').value = calcExpr; }
+    function calcLimpar() { calcExpr = ''; document.getElementById('calcDisplay').value = '0'; }
+    function calcIgual() {
+      try {
+        calcExpr = eval(calcExpr).toString();
+        document.getElementById('calcDisplay').value = calcExpr;
+      } catch {
+        document.getElementById('calcDisplay').value = 'Erro';
+        calcExpr = '';
+      }
+    }
   </script>
 </body>
 

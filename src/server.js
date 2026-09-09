@@ -1,31 +1,33 @@
+// Força o ambiente Node.js a trabalhar no fuso de Brasília
+process.env.TZ = 'America/Sao_Paulo';
+
 const express = require('express');
+const cors = require('cors');
 const path = require('path');
-require('dotenv').config();
 
-// 1. Inicializar o app Express
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-// 2. Middlewares base
+// Middlewares
+app.use(cors());
 app.use(express.json());
-
-// Servir os arquivos estáticos da pasta public
 app.use(express.static(path.join(__dirname, '../public')));
 
-// 3. Importar as rotas
+// Importar as rotas
 const categoriaRoutes = require('./routes/categoriaRoutes');
 const transacaoRoutes = require('./routes/transacaoRoutes');
 const fluxoCaixaRoutes = require('./routes/fluxoCaixaRoutes');
 const produtoRoutes = require('./routes/produtoRoutes');
+const usuarioRoutes = require('./routes/usuarioRoutes');
 
-// 4. Registrar os endpoints da API
+// Registrar os endpoints da API
+app.use('/', usuarioRoutes);
 app.use('/categorias', categoriaRoutes);
 app.use('/transacoes', transacaoRoutes);
 app.use('/fluxo-caixa', fluxoCaixaRoutes);
 app.use('/produtos', produtoRoutes);
 
-// 5. Inicializar o servidor
-const PORT = process.env.PORT || 3000;
-
+// Iniciar o servidor
 app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`Servidor rodando na porta ${PORT} com timezone America/Sao_Paulo`);
 });
