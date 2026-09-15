@@ -1,56 +1,67 @@
 const pool = require('../config/db');
 
 // Listar transações
-async function listarTransacoes(req, res) {
-  const { dataInicio, dataFim } = req.query;
-
-  try {
-    let query = `
-      SELECT 
-        t.id, 
-        t.descricao, 
-        t.valor, 
-        t.tipo, 
-        t.data,
-        TO_CHAR(t.data, 'DD/MM/YYYY HH24:MI:SS') AS data_hora_formatada,
-        c.nome AS categoria_nome 
-      FROM transacoes t
-      LEFT JOIN categorias c ON t.categoria_id = c.id
-    `;
-    const params = [];
-
-    if (dataInicio && dataFim) {
-      query += ' WHERE t.data >= $1 AND t.data <= $2';
-      params.push(`${dataInicio} 00:00:00`, `${dataFim} 23:59:59`);
-    }
-
-    query += ' ORDER BY t.data DESC';
-
-    const result = await pool.query(query, params);
-    return res.json(result.rows);
-  } catch (err) {
-    return res.status(500).json({ error: 'Erro ao buscar transações', details: err.message });
-  }
-}
-
-// Criar transação
+// Criar transação e atualizar estoque
 async function criarTransacao(req, res) {
-  const { descricao, valor, tipo, categoria_id } = req.body;
+  const { descricao, valor, tipo, categoria_id, produto_id, quantidade } = req.body;
 
-  if (!descricao || !valor || !tipo) {
+  if (!descricao || valor === undefined || valor === null || !tipo) {
     return res.status(400).json({ error: 'Descrição, valor e tipo são obrigatórios' });
   }
 
+  const descTratada = String(descricao).trim();
+  const valorTratado = Number(valor);
+  const tipoTratado = String(tipo).toUpperCase().trim();
+  const catIdTratado = (categoria_id && !isNaN(categoria_id)) ? parseInt(categoria_id, 10) : null;
+  const prodIdTratado = (produto_id && !isNaN(produto_id)) ? parseInt(produto_id, 10) : null;
+  const qtdTratada = (quantidade && !isNaN(quantidade)) ? parseInt(quantidade, 10) : 1;
+
+  const client = await pool.connect();
+
   try {
-    const query = `
-      INSERT INTO transacoes (descricao, valor, tipo, categoria_id)
-      VALUES ($1, $2, $3, $4)
+    await client.query('BEGIN');
+
+    // Inserção com TODAS as colunas que a tabela exige
+    const queryTransacao = `
+      INSERT INTO transacoes (descricao, valor, tipo, categoria_id, produto_id, quantidade)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `;
-    const result = await pool.query(query, [descricao, valor, tipo.toUpperCase(), categoria_id || null]);
-    return res.status(201).json(result.rows[0]);
+
+    const resTransacao = await client.query(queryTransacao, [
+      descTratada,
+      valorTratado,
+      tipoTratado,
+      catIdTratado,
+      prodIdTratado,
+      qtdTratada
+    ]);
+
+    // Abate no estoque da tabela de produtos quando for venda/entrada
+    if (prodIdTratado && tipoTratado === 'ENTRADA') {
+      const queryEstoque = `
+        UPDATE produtos 
+        SET quantidade_estoque = quantidade_estoque - $1 
+        WHERE id = $2 AND quantidade_estoque >= $1
+        RETURNING *
+      `;
+      const resEstoque = await client.query(queryEstoque, [qtdTratada, prodIdTratado]);
+
+      if (resEstoque.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Estoque insuficiente para realizar esta venda' });
+      }
+    }
+
+    await client.query('COMMIT');
+    return res.status(201).json(resTransacao.rows[0]);
+
   } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Erro detalhado no PostgreSQL:', err.message);
     return res.status(500).json({ error: 'Erro ao cadastrar transação', details: err.message });
+  } finally {
+    client.release();
   }
 }
 
@@ -71,5 +82,4 @@ async function deletarTransacao(req, res) {
   }
 }
 
-// Exportação obrigatória para o router consumir
 module.exports = { listarTransacoes, criarTransacao, deletarTransacao };

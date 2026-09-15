@@ -1,19 +1,27 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../config/db'); // Importação obrigatória da conexão com o banco
+const pool = require('../config/db');
 
-// Rota de resumo financeiro com filtro por horário de login (turno)
 router.get('/resumo', async (req, res) => {
   const { desde } = req.query;
 
   try {
-    let queryEntradas = "SELECT COALESCE(SUM(valor), 0) AS total FROM transacoes WHERE tipo = 'ENTRADA'";
-    let querySaidas = "SELECT COALESCE(SUM(valor), 0) AS total FROM transacoes WHERE tipo = 'SAIDA'";
+    // Usamos UPPER() para aceitar 'ENTRADA', 'entrada', 'RECEITA' ou 'receita'
+    let queryEntradas = `
+      SELECT COALESCE(SUM(valor), 0) AS total 
+      FROM transacoes 
+      WHERE UPPER(tipo) IN ('ENTRADA', 'RECEITA')
+    `;
+    
+    let querySaidas = `
+      SELECT COALESCE(SUM(valor), 0) AS total 
+      FROM transacoes 
+      WHERE UPPER(tipo) IN ('SAIDA', 'DESPESA')
+    `;
+    
     let params = [];
 
-    // Se a data/hora do login foi informada, filtra as vendas a partir desse momento
     if (desde && desde !== 'undefined' && desde !== '--:--:--') {
-      // Converte a string DD/MM/YYYY HH24:MI:SS para TIMESTAMP compativel com o PostgreSQL
       queryEntradas += " AND data >= TO_TIMESTAMP($1, 'DD/MM/YYYY HH24:MI:SS')";
       querySaidas += " AND data >= TO_TIMESTAMP($1, 'DD/MM/YYYY HH24:MI:SS')";
       params.push(desde);
@@ -22,8 +30,8 @@ router.get('/resumo', async (req, res) => {
     const resEntradas = await pool.query(queryEntradas, params);
     const resSaidas = await pool.query(querySaidas, params);
 
-    const totalEntradas = parseFloat(resEntradas.rows[0].total);
-    const totalSaidas = parseFloat(resSaidas.rows[0].total);
+    const totalEntradas = parseFloat(resEntradas.rows[0].total || 0);
+    const totalSaidas = parseFloat(resSaidas.rows[0].total || 0);
     const saldoTotal = totalEntradas - totalSaidas;
 
     res.json({
@@ -32,7 +40,7 @@ router.get('/resumo', async (req, res) => {
       saldoTotal: saldoTotal.toFixed(2)
     });
   } catch (err) {
-    console.error('Erro ao calcular resumo do turno:', err);
+    console.error('Erro ao calcular resumo do caixa:', err);
     res.status(500).json({ error: 'Erro ao calcular resumo', details: err.message });
   }
 });

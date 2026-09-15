@@ -26,6 +26,8 @@ app.use('/categorias', categoriaRoutes);
 app.use('/transacoes', transacaoRoutes);
 app.use('/fluxo-caixa', fluxoCaixaRoutes);
 app.use('/produtos', produtoRoutes);
+app.use('/api/produtos', produtoRoutes);
+app.use('/api/categorias', categoriaRoutes);
 
 // Iniciar o servidor
 app.listen(PORT, () => {

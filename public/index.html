@@ -195,7 +195,8 @@
             <input type="checkbox" id="usr_pode_excluir"> Pode excluir vendas/produtos
           </label>
         </div>
-        <button type="submit" class="btn-categoria" style="background-color: #27ae60; color: white;">Cadastrar Operador</button>
+        <button type="submit" class="btn-categoria" style="background-color: #27ae60; color: white;">Cadastrar
+          Operador</button>
       </form>
 
     </div>
@@ -322,21 +323,19 @@
     }
 
     // 3. CARREGAMENTO E RESUMO DO TURNO
-    async function carregarResumoTurno() {
-      if (!usuarioLogado || !usuarioLogado.horaLogin) {
-        zerarCardsInterface();
-        return;
-      }
-
+    async function carregarResumo() {
       try {
-        const res = await fetch(`/fluxo-caixa/resumo?desde=${encodeURIComponent(usuarioLogado.horaLogin)}`);
-        const data = await res.json();
+        const res = await fetch('/fluxo-caixa/resumo');
+        if (!res.ok) return;
 
-        document.getElementById('entradas').innerText = `R$ ${data.totalEntradas}`;
-        document.getElementById('saidas').innerText = `R$ ${data.totalSaidas}`;
-        document.getElementById('saldo').innerText = `R$ ${data.saldoTotal}`;
+        const dados = await res.json();
+
+        // Atualiza os elementos no topo da página
+        document.getElementById('totalEntradas').innerText = `R$ ${dados.totalEntradas.replace('.', ',')}`;
+        document.getElementById('totalSaidas').innerText = `R$ ${dados.totalSaidas.replace('.', ',')}`;
+        document.getElementById('saldoTotal').innerText = `R$ ${dados.saldoTotal.replace('.', ',')}`;
       } catch (err) {
-        console.error('Erro ao buscar resumo:', err);
+        console.error('Erro ao carregar resumo:', err);
       }
     }
 
@@ -373,28 +372,41 @@
     }
 
     async function carregarTransacoes() {
-      const res = await fetch('/transacoes');
-      const transacoes = await res.json();
-      const tbody = document.getElementById('tabelaTransacoes');
-      tbody.innerHTML = '';
+      try {
+        const res = await fetch('/transacoes');
 
-      transacoes.forEach(t => {
-        const tr = document.createElement('tr');
-        const valorFormatado = parseFloat(t.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-        const classeTipo = t.tipo === 'ENTRADA' ? 'texto-entrada' : 'texto-saida';
-        const dataHora = t.data_hora_formatada || new Date(t.data).toLocaleString('pt-BR');
-        const acaoExcluir = (usuarioLogado && usuarioLogado.pode_excluir) ? `<button onclick="deletarTransacao(${t.id})" class="btn-deletar">Excluir</button>` : '';
+        // Se a rota der 404 no servidor, previne a tentativa de converter HTML em JSON
+        if (!res.ok) {
+          console.warn(`Rota /transacoes indisponível (Status: ${res.status})`);
+          return;
+        }
 
-        tr.innerHTML = `
-          <td>${dataHora}</td>
-          <td>${t.descricao}</td>
-          <td class="${classeTipo}">${t.tipo}</td>
-          <td>${t.categoria_nome || 'Geral'}</td>
-          <td class="${classeTipo}">${valorFormatado}</td>
-          <td class="col-acoes">${acaoExcluir}</td>
-        `;
-        tbody.appendChild(tr);
-      });
+        const transacoes = await res.json();
+        const tbody = document.getElementById('tabelaTransacoes');
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+
+        transacoes.forEach(t => {
+          const tr = document.createElement('tr');
+          const valorFormatado = parseFloat(t.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+          const classeTipo = t.tipo === 'ENTRADA' ? 'texto-entrada' : 'texto-saida';
+          const dataHora = t.data_hora_formatada || new Date(t.data).toLocaleString('pt-BR');
+          const acaoExcluir = (usuarioLogado && usuarioLogado.pode_excluir) ? `<button onclick="deletarTransacao(${t.id})" class="btn-deletar">Excluir</button>` : '';
+
+          tr.innerHTML = `
+        <td>${dataHora}</td>
+        <td>${t.descricao}</td>
+        <td class="${classeTipo}">${t.tipo}</td>
+        <td>${t.categoria_nome || 'Geral'}</td>
+        <td class="${classeTipo}">${valorFormatado}</td>
+        <td class="col-acoes">${acaoExcluir}</td>
+      `;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        console.error('Erro ao carregar transações:', err);
+      }
     }
 
     // 4. MÓDULO MASTER - OPERADORES
@@ -504,30 +516,51 @@
 
     document.getElementById('formTransacao').addEventListener('submit', async (e) => {
       e.preventDefault();
+
       const prodId = document.getElementById('produto_id').value;
       const catId = document.getElementById('categoria_id').value;
+      const qtdVendida = parseInt(document.getElementById('quantidade_venda').value) || 1;
 
-      const res = await fetch('/transacoes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          descricao: document.getElementById('descricao').value,
-          valor: parseFloat(document.getElementById('valor').value),
-          tipo: document.getElementById('tipo').value,
-          categoria_id: catId ? parseInt(catId) : null,
-          produto_id: prodId ? parseInt(prodId) : null,
-          quantidade: parseInt(document.getElementById('quantidade_venda').value) || 1
-        })
-      });
+      if (!usuarioLogado) {
+        alert('Sessão expirada. Faça login novamente.');
+        return;
+      }
 
-      if (res.ok) {
-        document.getElementById('formTransacao').reset();
-        carregarResumoTurno();
-        carregarTransacoes();
-        carregarProdutos();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Erro ao registrar venda');
+      const payload = {
+        descricao: document.getElementById('descricao').value,
+        valor: parseFloat(document.getElementById('valor').value),
+        tipo: document.getElementById('tipo').value,
+        categoria_id: catId ? parseInt(catId) : null,
+        produto_id: prodId ? parseInt(prodId) : null,
+        quantidade: qtdVendida
+      };
+
+      try {
+        const res = await fetch('/transacoes', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-perfil-usuario': usuarioLogado.perfil
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const resposta = await res.json().catch(() => ({}));
+
+        if (res.ok) {
+          document.getElementById('formTransacao').reset();
+          alert('Venda registrada e estoque atualizado com sucesso!');
+
+          // Recarrega todos os módulos da interface
+          await carregarProdutos();     // O estoque na tabela baixará de 10 un para 9 un!
+          await carregarTransacoes();   // A venda aparecerá no histórico
+          await carregarResumoTurno();  // O saldo e as entradas serão atualizados
+        } else {
+          alert(resposta.error || resposta.details || 'Erro ao processar venda.');
+        }
+      } catch (err) {
+        console.error('Erro ao registrar venda:', err);
+        alert('Erro de comunicação com o servidor.');
       }
     });
 
@@ -543,6 +576,174 @@
       } catch {
         document.getElementById('calcDisplay').value = 'Erro';
         calcExpr = '';
+      }
+    }
+
+    // Adicionar dentro do <script> do index.html
+
+    const formCategoriaEl = document.getElementById('formCategoria');
+    if (formCategoriaEl) {
+      formCategoriaEl.addEventListener('submit', async (e) => {
+        // 1. IMPEDE O RECARREGAMENTO DA PÁGINA
+        e.preventDefault();
+
+        const nome = document.getElementById('cat_nome').value;
+        const tipo = document.getElementById('cat_tipo').value;
+
+        try {
+          const res = await fetch('/categorias', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nome, tipo })
+          });
+
+          if (res.ok) {
+            document.getElementById('formCategoria').reset();
+            alert('Categoria cadastrada com sucesso!');
+
+            // Se houver função de recarregar categorias/produtos no index.html
+            if (typeof carregarProdutos === 'function') carregarProdutos();
+          } else {
+            const err = await res.json().catch(() => ({}));
+            alert(err.error || err.mensagem || 'Erro ao cadastrar categoria');
+          }
+        } catch (err) {
+          console.error('Erro de conexão ao salvar categoria:', err);
+          alert('Erro de conexão com o servidor.');
+        }
+      });
+    }
+
+    async function carregarCategorias() {
+      try {
+        const res = await fetch('/categorias');
+        if (!res.ok) return;
+
+        const categorias = await res.json();
+
+        // Seletores dos elementos de categoria no index.html
+        const selectProdCat = document.getElementById('prod_categoria_id');
+        const selectVendaCat = document.getElementById('categoria_id');
+
+        // Opção padrão limpa
+        const opcaoPadrao = '<option value="">Sem Categoria</option>';
+
+        const opcoes = categorias.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+
+        if (selectProdCat) selectProdCat.innerHTML = opcaoPadrao + opcoes;
+        if (selectVendaCat) selectVendaCat.innerHTML = opcaoPadrao + opcoes;
+      } catch (err) {
+        console.error('Erro ao carregar categorias no index.html:', err);
+      }
+    }
+
+    // 1. AUTENTICAÇÃO E LOGIN
+    document.getElementById('formLogin').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const loginInput = document.getElementById('login_usuario').value;
+      const senhaInput = document.getElementById('login_senha').value;
+
+      try {
+        const res = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ login: loginInput, senha: senhaInput })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          usuarioLogado = data.usuario;
+
+          document.getElementById('modalLogin').style.display = 'none';
+
+          document.getElementById('labelUsuario').innerHTML = `Operador: <strong>${usuarioLogado.nome}</strong>`;
+          document.getElementById('labelPerfil').innerText = usuarioLogado.perfil;
+          document.getElementById('labelAberturaCaixa').innerHTML = `Sessão iniciada às: <strong>${usuarioLogado.horaLogin}</strong>`;
+
+          // Chamadas das funções de carregamento após o login
+          aplicarPermissoes();
+          carregarResumoTurno();
+          carregarProdutos();
+          carregarTransacoes();
+          carregarCategorias(); // <--- Adicionado aqui para preencher as categorias no login!
+        } else {
+          alert(data.error || 'Falha ao autenticar');
+        }
+      } catch (err) {
+        console.error('Erro no login:', err);
+      }
+    });
+
+    const formProdutoEl = document.getElementById('formProduto');
+    if (formProdutoEl) {
+      formProdutoEl.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        if (!usuarioLogado) {
+          alert('Sessão expirada. Faça login novamente.');
+          return;
+        }
+
+        const produto = {
+          nome: document.getElementById('prod_nome').value,
+          preco_venda: parseFloat(document.getElementById('prod_preco_venda').value),
+          quantidade_estoque: parseInt(document.getElementById('prod_qtd').value),
+          categoria_id: document.getElementById('prod_categoria_id').value || null
+        };
+
+        try {
+          const res = await fetch('/produtos', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              // O HEADER EXATO QUE O eMaster EXIGE:
+              'x-perfil-usuario': usuarioLogado.perfil
+            },
+            body: JSON.stringify(produto)
+          });
+
+          const respostaData = await res.json().catch(() => ({}));
+
+          if (res.ok) {
+            document.getElementById('formProduto').reset();
+            alert('Produto cadastrado com sucesso!');
+            await carregarProdutos(); // Atualiza a tabela de estoque imediatamente!
+          } else {
+            alert(respostaData.error || 'Acesso negado ao cadastrar produto.');
+          }
+        } catch (err) {
+          console.error('Erro ao salvar produto:', err);
+          alert('Erro de comunicação com o servidor.');
+        }
+      });
+    }
+
+    function selecionarProdutoVenda() {
+      const prodId = document.getElementById('produto_id').value;
+      const campoDescricao = document.getElementById('descricao');
+      const campoValor = document.getElementById('valor');
+      const campoQtd = document.getElementById('quantidade_venda');
+
+      if (!prodId) {
+        if (campoDescricao) campoDescricao.value = '';
+        if (campoValor) campoValor.value = '';
+        return;
+      }
+
+      // Busca o produto selecionado na lista carregada do banco
+      const prod = listaProdutos.find(p => p.id == prodId);
+      if (prod) {
+        const qtd = parseInt(campoQtd.value) || 1;
+        if (campoDescricao) campoDescricao.value = `Venda: ${prod.nome}`;
+        if (campoValor) campoValor.value = (parseFloat(prod.preco_venda) * qtd).toFixed(2);
+
+        // Auto-seleciona a categoria do produto no formulário de venda
+        const selectCatVenda = document.getElementById('categoria_id');
+        if (selectCatVenda && prod.categoria_id) {
+          selectCatVenda.value = prod.categoria_id;
+        }
       }
     }
   </script>

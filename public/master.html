@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Painel Master - Gestão & Estoque</title>
+    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="master.css">
+</head>
+
+<body>
+
+    <div class="container-master">
+        <div class="nav-header">
+            <h2>Painel Master - Gestão do Sistema</h2>
+            <a href="index.html" class="btn-acao btn-salvar" style="text-decoration: none;">← Voltar ao PDV</a>
+        </div>
+
+        <!-- GESTÃO DE PRODUTOS E ESTOQUE -->
+        <div class="card-master">
+            <h3>Cadastrar / Editar Produto</h3>
+            <!-- Removido o onsubmit inline para não dar conflito com o Controller -->
+            <form id="formProduto">
+                <input type="hidden" id="prodId">
+                <div class="grid-form">
+                    <div>
+                        <label>Nome do Produto:</label>
+                        <input type="text" id="prodNome" required style="width: 100%; padding: 8px;">
+                    </div>
+                    <div>
+                        <label>Preço de Venda (R$):</label>
+                        <input type="number" step="0.01" id="prodPreco" required style="width: 100%; padding: 8px;">
+                    </div>
+                    <div>
+                        <label>Qtd em Estoque:</label>
+                        <input type="number" id="prodEstoque" required style="width: 100%; padding: 8px;">
+                    </div>
+                    <div>
+                        <label>Categoria:</label>
+                        <select id="prodCategoria" style="width: 100%; padding: 8px;"></select>
+                    </div>
+                </div>
+                <button type="submit" class="btn-acao btn-salvar">Salvar Produto</button>
+            </form>
+
+            <h4 style="margin-top: 25px;">Produtos Cadastrados</h4>
+            <table class="tabela-master">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Produto</th>
+                        <th>Preço</th>
+                        <th>Estoque</th>
+                        <th>Categoria</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyProdutos"></tbody>
+            </table>
+        </div>
+
+        <!-- GESTÃO DE CATEGORIAS -->
+        <div class="card-master">
+            <h3>Cadastrar Categoria</h3>
+            <!-- Removido o onsubmit inline para não dar conflito com o Controller -->
+            <form id="formCategoria">
+                <div class="grid-form">
+                    <div>
+                        <label>Nome da Categoria:</label>
+                        <input type="text" id="catNome" required style="width: 100%; padding: 8px;">
+                    </div>
+                    <div>
+                        <label>Tipo:</label>
+                        <select id="catTipo" style="width: 100%; padding: 8px;">
+                            <option value="RECEITA">RECEITA</option>
+                            <option value="DESPESA">DESPESA</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- Alterado para type="button" com onclick direto -->
+                <button type="button" onclick="salvarCategoria(event)" class="btn-acao btn-salvar">Salvar
+                    Categoria</button>
+            </form>
+
+            <h4 style="margin-top: 25px;">Categorias Existentes</h4>
+            <table class="tabela-master">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Tipo</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyCategorias"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Define o prefixo correto utilizado pelo backend
+        const API_URL = 'http://localhost:3000/api';
+
+        document.addEventListener('DOMContentLoaded', carregarDados);
+
+        async function carregarDados() {
+            await carregarCategorias();
+            await carregarProdutos();
+        }
+
+        // CARREGAR CATEGORIAS
+        async function carregarCategorias() {
+            try {
+                const res = await fetch(`${API_URL}/categorias`);
+                if (!res.ok) return;
+                const categorias = await res.json();
+
+                const selectCat = document.getElementById('prodCategoria');
+                const tbodyCat = document.getElementById('tbodyCategorias');
+
+                if (selectCat) selectCat.innerHTML = '<option value="">Sem Categoria</option>';
+                if (tbodyCat) tbodyCat.innerHTML = '';
+
+                categorias.forEach(c => {
+                    if (selectCat) selectCat.innerHTML += `<option value="${c.id}">${c.nome}</option>`;
+                    if (tbodyCat) tbodyCat.innerHTML += `<tr><td>${c.id}</td><td>${c.nome}</td><td>${c.tipo || 'RECEITA'}</td></tr>`;
+                });
+            } catch (err) {
+                console.error('Erro ao carregar categorias:', err);
+            }
+        }
+
+        // CARREGAR PRODUTOS
+        async function carregarProdutos() {
+            try {
+                const res = await fetch(`${API_URL}/produtos`);
+                if (!res.ok) return;
+                const produtos = await res.json();
+                const tbodyProd = document.getElementById('tbodyProdutos');
+                if (tbodyProd) tbodyProd.innerHTML = '';
+
+                produtos.forEach(p => {
+                    if (tbodyProd) {
+                        tbodyProd.innerHTML += `
+                <tr>
+                  <td>${p.id}</td>
+                  <td>${p.nome}</td>
+                  <td>R$ ${parseFloat(p.preco_venda || p.preco || 0).toFixed(2)}</td>
+                  <td>${p.quantidade_estoque || p.estoque || 0}</td>
+                  <td>${p.categoria_nome || 'Geral'}</td>
+                  <td>
+                    <button type="button" onclick="deletarProduto(${p.id})" class="btn-acao btn-excluir">Excluir</button>
+                  </td>
+                </tr>
+              `;
+                    }
+                });
+            } catch (err) {
+                console.error('Erro ao carregar produtos:', err);
+            }
+        }
+
+        // SALVAR PRODUTO
+        async function salvarProduto(e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            const produto = {
+                nome: document.getElementById('prodNome').value,
+                preco_venda: parseFloat(document.getElementById('prodPreco').value),
+                quantidade_estoque: parseInt(document.getElementById('prodEstoque').value, 10),
+                categoria_id: document.getElementById('prodCategoria').value ? parseInt(document.getElementById('prodCategoria').value, 10) : null
+            };
+
+            try {
+                const res = await fetch(`${API_URL}/produtos`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(produto)
+                });
+
+                if (res.ok) {
+                    document.getElementById('formProduto').reset();
+                    carregarProdutos();
+                } else {
+                    const errData = await res.json();
+                    alert(`Erro ao salvar produto: ${errData.error || errData.mensagem || 'Falha no servidor'}`);
+                }
+            } catch (err) {
+                console.error('Erro ao salvar produto:', err);
+            }
+            return false;
+        }
+
+        // SALVAR CATEGORIA
+        async function salvarCategoria(e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            const nomeInput = document.getElementById('catNome').value;
+            const tipoInput = document.getElementById('catTipo').value;
+
+            if (!nomeInput.trim()) {
+                alert('Por favor, informe o nome da categoria.');
+                return false;
+            }
+
+            const categoria = {
+                nome: nomeInput.trim(),
+                tipo: tipoInput
+            };
+
+            try {
+                const res = await fetch('http://localhost:3000/api/categorias', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(categoria)
+                });
+
+                if (res.ok) {
+                    alert('Categoria cadastrada com sucesso!');
+                    document.getElementById('catNome').value = '';
+                    carregarCategorias(); // Recarrega a tabela de categorias e o select
+                } else {
+                    const errData = await res.json();
+                    alert(`Erro ao cadastrar categoria: ${errData.error || errData.mensagem || errData.details || 'Erro interno'}`);
+                }
+            } catch (err) {
+                console.error('Erro de rede ao salvar categoria:', err);
+                alert('Erro ao conectar com o servidor.');
+            }
+            return false;
+        }
+
+        // DELETAR PRODUTO
+        async function deletarProduto(id) {
+            if (confirm('Deseja excluir este produto?')) {
+                try {
+                    await fetch(`${API_URL}/produtos/${id}`, { method: 'DELETE' });
+                    carregarProdutos();
+                } catch (err) {
+                    console.error('Erro ao deletar produto:', err);
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
