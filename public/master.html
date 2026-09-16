@@ -176,7 +176,10 @@
             try {
                 const res = await fetch(`${API_URL}/produtos`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-perfil-usuario': 'MASTER'
+                    },
                     body: JSON.stringify(produto)
                 });
 

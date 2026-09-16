@@ -15,11 +15,19 @@ Aplicação completa de gestão financeira desenvolvida em **Node.js**, **Expres
 
 ## 🗄️ Estrutura do Banco de Dados
 
-Antes de iniciar a aplicação, crie o banco de dados `fluxo_caixa` e execute as queries SQL abaixo no PostgreSQL (`psql` ou pgAdmin):
+Antes de iniciar a aplicação, crie o banco de dados `aninha` e execute as queries SQL abaixo no PostgreSQL (`psql` ou pgAdmin):
 
 ```sql
 -- Criar o banco de dados
-CREATE DATABASE fluxo_caixa;
+CREATE DATABASE aninha;
+
+Se o banco antigo `fluxo_caixa` já existir, conecte-se ao banco `postgres` e execute:
+
+```sql
+ALTER DATABASE fluxo_caixa RENAME TO aninha;
+```
+
+O banco antigo não pode estar sendo usado por outra conexão durante a alteração.
 
 -- Tabela de Categorias
 CREATE TABLE IF NOT EXISTS categorias (

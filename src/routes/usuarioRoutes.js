@@ -1,6 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
+const fs = require('fs');
+const path = require('path');
+const { eMaster } = require('../services/authMiddleware');
+
+router.get('/logs', eMaster, (req, res) => {
+  const logFile = path.join(__dirname, '../../logs/sistema.log');
+
+  if (!fs.existsSync(logFile)) {
+    return res.type('text/plain').send('Nenhum registro de log foi criado ainda.');
+  }
+
+  return res.type('text/plain').send(fs.readFileSync(logFile, 'utf8'));
+});
 
 // Rota de Login com atualização de horário no PostgreSQL
 router.post('/login', async (req, res) => {
@@ -79,16 +92,78 @@ router.post('/usuarios', async (req, res) => {
 // Atualizar permissão de usuário
 router.put('/usuarios/:id', async (req, res) => {
   const { id } = req.params;
-  const { pode_excluir, perfil } = req.body;
+  const { nome, login, senha, pode_excluir, perfil } = req.body;
 
   try {
-    await pool.query(
-      'UPDATE usuarios SET pode_excluir = $1, perfil = $2 WHERE id = $3',
-      [pode_excluir, perfil, id]
+    const campos = [];
+    const valores = [];
+
+    if (nome !== undefined) {
+      campos.push(`nome = $${valores.length + 1}`);
+      valores.push(nome.trim());
+    }
+
+    if (login !== undefined) {
+      campos.push(`login = $${valores.length + 1}`);
+      valores.push(login.trim().toLowerCase());
+    }
+
+    if (perfil !== undefined) {
+      campos.push(`perfil = $${valores.length + 1}`);
+      valores.push(perfil);
+    }
+
+    if (pode_excluir !== undefined) {
+      campos.push(`pode_excluir = $${valores.length + 1}`);
+      valores.push(pode_excluir);
+    }
+
+    if (senha && senha.trim()) {
+      campos.push(`senha = $${valores.length + 1}`);
+      valores.push(senha.trim());
+    }
+
+    if (campos.length === 0) {
+      return res.status(400).json({ error: 'Nenhum dado informado para atualização.' });
+    }
+
+    valores.push(id);
+    const result = await pool.query(
+      `UPDATE usuarios SET ${campos.join(', ')} WHERE id = $${valores.length}
+       RETURNING id, nome, login, perfil, pode_excluir`,
+      valores
     );
-    res.json({ message: 'Usuário atualizado!' });
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    res.json({ message: 'Usuário atualizado!', usuario: result.rows[0] });
   } catch (err) {
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'Este login já existe no sistema.' });
+    }
     res.status(500).json({ error: 'Erro ao atualizar usuário', details: err.message });
+  }
+});
+
+// Excluir usuário cadastrado
+router.delete('/usuarios/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      'DELETE FROM usuarios WHERE id = $1 AND perfil <> $2 RETURNING id',
+      [id, 'MASTER']
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(400).json({ error: 'Usuário não encontrado ou usuário Master não pode ser excluído.' });
+    }
+
+    res.json({ message: 'Usuário excluído com sucesso!' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao excluir usuário', details: err.message });
   }
 });
 

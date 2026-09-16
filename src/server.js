@@ -4,6 +4,7 @@ process.env.TZ = 'America/Sao_Paulo';
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const { registrarLog } = require('./services/logger');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,6 +29,27 @@ app.use('/fluxo-caixa', fluxoCaixaRoutes);
 app.use('/produtos', produtoRoutes);
 app.use('/api/produtos', produtoRoutes);
 app.use('/api/categorias', categoriaRoutes);
+
+app.use((err, req, res, next) => {
+  registrarLog('ERRO_NAO_TRATADO', {
+    metodo: req.method,
+    rota: req.originalUrl,
+    erro: err.message,
+    stack: err.stack
+  });
+
+  if (res.headersSent) return next(err);
+  return res.status(500).json({ error: 'Erro interno do servidor' });
+});
+
+process.on('uncaughtException', (err) => {
+  registrarLog('ERRO_FATAL', { erro: err.message, stack: err.stack });
+});
+
+process.on('unhandledRejection', (reason) => {
+  const erro = reason instanceof Error ? reason : new Error(String(reason));
+  registrarLog('PROMISE_NAO_TRATADA', { erro: erro.message, stack: erro.stack });
+});
 
 // Iniciar o servidor
 app.listen(PORT, () => {

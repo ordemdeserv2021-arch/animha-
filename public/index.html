@@ -66,6 +66,11 @@
       <form id="formTransacao" class="grid-form">
         <h3>Novo Lançamento / Venda (PDV)</h3>
         <div class="field">
+          <label>Código de barras</label>
+          <input type="text" id="codigo_barras_venda" inputmode="numeric" autocomplete="off"
+            placeholder="Escaneie ou digite o código">
+        </div>
+        <div class="field">
           <label>Tipo</label>
           <select id="tipo" required>
             <option value="ENTRADA">Entrada (Receita)</option>
@@ -152,6 +157,10 @@
           <input type="text" id="prod_nome" required placeholder="Ex: Câmera Dome 1080p">
         </div>
         <div class="field">
+          <label>Código de barras</label>
+          <input type="text" id="prod_codigo_barras" inputmode="numeric" placeholder="EAN, GTIN ou código interno">
+        </div>
+        <div class="field">
           <label>Preço Venda (R$)</label>
           <input type="number" step="0.01" id="prod_preco_venda" required placeholder="0.00">
         </div>
@@ -198,6 +207,12 @@
         <button type="submit" class="btn-categoria" style="background-color: #27ae60; color: white;">Cadastrar
           Operador</button>
       </form>
+
+      <div class="card-form">
+        <h3>Auditoria do Sistema</h3>
+        <p>Consulte os registros de fechamentos e relatórios.</p>
+        <button type="button" class="btn-categoria" onclick="abrirLogsSistema()">Ver arquivo de logs</button>
+      </div>
 
     </div>
 
@@ -288,7 +303,7 @@
           document.getElementById('labelAberturaCaixa').innerHTML = `Sessão iniciada às: <strong>${usuarioLogado.horaLogin}</strong>`;
 
           aplicarPermissoes();
-          carregarResumoTurno();
+          carregarResumo();
           carregarProdutos();
           carregarTransacoes();
         } else {
@@ -331,9 +346,9 @@
         const dados = await res.json();
 
         // Atualiza os elementos no topo da página
-        document.getElementById('totalEntradas').innerText = `R$ ${dados.totalEntradas.replace('.', ',')}`;
-        document.getElementById('totalSaidas').innerText = `R$ ${dados.totalSaidas.replace('.', ',')}`;
-        document.getElementById('saldoTotal').innerText = `R$ ${dados.saldoTotal.replace('.', ',')}`;
+        document.getElementById('entradas').innerText = `R$ ${dados.totalEntradas.replace('.', ',')}`;
+        document.getElementById('saidas').innerText = `R$ ${dados.totalSaidas.replace('.', ',')}`;
+        document.getElementById('saldo').innerText = `R$ ${dados.saldoTotal.replace('.', ',')}`;
       } catch (err) {
         console.error('Erro ao carregar resumo:', err);
       }
@@ -370,6 +385,30 @@
         selectProd.appendChild(option);
       });
     }
+
+    function buscarProdutoPorCodigo() {
+      const campo = document.getElementById('codigo_barras_venda');
+      const codigo = campo.value.trim();
+      if (!codigo) return;
+
+      const produto = listaProdutos.find(item => String(item.codigo_barras || '').trim() === codigo);
+      if (!produto) {
+        alert('Nenhum produto encontrado para este código de barras.');
+        campo.select();
+        return;
+      }
+
+      document.getElementById('produto_id').value = produto.id;
+      selecionarProdutoVenda();
+      document.getElementById('quantidade_venda').focus();
+    }
+
+    document.getElementById('codigo_barras_venda').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        buscarProdutoPorCodigo();
+      }
+    });
 
     async function carregarTransacoes() {
       try {
@@ -409,6 +448,61 @@
       }
     }
 
+    async function deletarProduto(id) {
+      if (!usuarioLogado || !usuarioLogado.pode_excluir) {
+        alert('Seu usuário não possui permissão para excluir produtos.');
+        return;
+      }
+
+      if (!confirm('Deseja realmente excluir este produto?')) return;
+
+      try {
+        const res = await fetch(`/produtos/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'x-perfil-usuario': usuarioLogado.perfil,
+            'x-pode-excluir': String(usuarioLogado.pode_excluir)
+          }
+        });
+        const dados = await res.json().catch(() => ({}));
+
+        if (!res.ok) throw new Error(dados.error || 'Não foi possível excluir o produto.');
+
+        alert('Produto excluído com sucesso.');
+        await carregarProdutos();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function deletarTransacao(id) {
+      if (!usuarioLogado || !usuarioLogado.pode_excluir) {
+        alert('Seu usuário não possui permissão para excluir transações.');
+        return;
+      }
+
+      if (!confirm('Deseja realmente excluir esta transação?')) return;
+
+      try {
+        const res = await fetch(`/transacoes/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'x-perfil-usuario': usuarioLogado.perfil,
+            'x-pode-excluir': String(usuarioLogado.pode_excluir)
+          }
+        });
+        const dados = await res.json().catch(() => ({}));
+
+        if (!res.ok) throw new Error(dados.error || 'Não foi possível excluir a transação.');
+
+        alert('Transação excluída com sucesso.');
+        await carregarTransacoes();
+        await carregarResumo();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
     // 4. MÓDULO MASTER - OPERADORES
     async function carregarUsuarios() {
       if (!usuarioLogado || usuarioLogado.perfil !== 'MASTER') return;
@@ -435,7 +529,8 @@
           </td>
           <td>${ultimoLogin}</td>
           <td class="col-acoes">
-            <button onclick="carregarUsuarios()" class="btn-limpar">Atualizar</button>
+            <button onclick='editarUsuario(${JSON.stringify(u)})' class="btn-categoria">Editar</button>
+            ${u.perfil !== 'MASTER' ? `<button onclick="deletarUsuario(${u.id}, '${u.nome.replace(/'/g, "\\'")}')" class="btn-deletar">Excluir</button>` : ''}
           </td>
         `;
         tbody.appendChild(tr);
@@ -443,11 +538,65 @@
     }
 
     async function alterarPermissaoUsuario(id, podeExcluir, perfil) {
-      await fetch(`/usuarios/${id}`, {
+      const res = await fetch(`/usuarios/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pode_excluir: podeExcluir, perfil: perfil })
+        body: JSON.stringify({ nome: '', login: '', pode_excluir: podeExcluir, perfil: perfil })
       });
+
+      if (!res.ok) {
+        alert('Erro ao atualizar a permissão do usuário.');
+        carregarUsuarios();
+      }
+    }
+
+    async function editarUsuario(usuario) {
+      const nome = prompt('Nome do usuário:', usuario.nome);
+      if (nome === null) return;
+
+      const login = prompt('Login:', usuario.login);
+      if (login === null) return;
+
+      const senha = prompt('Nova senha (deixe vazio para manter a atual):', '');
+      if (senha === null) return;
+
+      const perfil = prompt('Perfil (MASTER ou OPERADOR):', usuario.perfil);
+      if (perfil === null) return;
+
+      const res = await fetch(`/usuarios/${usuario.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome: nome.trim(),
+          login: login.trim(),
+          senha,
+          perfil: perfil.trim().toUpperCase(),
+          pode_excluir: usuario.pode_excluir
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Erro ao editar usuário.');
+        return;
+      }
+
+      alert('Usuário atualizado com sucesso!');
+      carregarUsuarios();
+    }
+
+    async function deletarUsuario(id, nome) {
+      if (!confirm(`Deseja excluir o usuário "${nome}"?`)) return;
+
+      const res = await fetch(`/usuarios/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Erro ao excluir usuário.');
+        return;
+      }
+
+      alert('Usuário excluído com sucesso!');
+      carregarUsuarios();
     }
 
     const formUsuarioEl = document.getElementById('formUsuario');
@@ -492,6 +641,33 @@
       }
     }
 
+    async function abrirLogsSistema() {
+      if (!usuarioLogado || usuarioLogado.perfil !== 'MASTER') {
+        alert('Apenas o usuário Master pode consultar os logs.');
+        return;
+      }
+
+      const janela = window.open('', '_blank');
+      if (!janela) {
+        alert('Permita pop-ups no navegador para visualizar os logs.');
+        return;
+      }
+
+      try {
+        const res = await fetch('/logs', {
+          headers: { 'x-perfil-usuario': usuarioLogado.perfil }
+        });
+        if (!res.ok) throw new Error('Não foi possível carregar os logs.');
+
+        const conteudo = await res.text();
+        janela.document.write(`<pre style="white-space: pre-wrap; font-family: monospace;">${conteudo.replace(/</g, '&lt;')}</pre>`);
+        janela.document.close();
+      } catch (err) {
+        janela.close();
+        alert(err.message);
+      }
+    }
+
     function recalcularValorVenda() {
       const prodId = document.getElementById('produto_id').value;
       const qtd = parseInt(document.getElementById('quantidade_venda').value) || 1;
@@ -504,14 +680,80 @@
       }
     }
 
-    function fecharCaixaTurno() {
-      const totalEntradas = document.getElementById('entradas').innerText;
-      const saldoFinal = document.getElementById('saldo').innerText;
-      const horaFechamento = new Date().toLocaleTimeString('pt-BR');
+    async function fecharCaixaTurno() {
+      if (!usuarioLogado) {
+        alert('Faça login antes de fechar o caixa.');
+        return;
+      }
 
-      alert(`--- RESUMO DE FECHAMENTO DE CAIXA ---\n\nOperador: ${usuarioLogado ? usuarioLogado.nome : 'Operador'}\nHora de Fechamento: ${horaFechamento}\nTotal de Entradas: ${totalEntradas}\nSaldo em Caixa: ${saldoFinal}\n\nCaixa encerrado com sucesso!`);
+      if (!confirm('Deseja fechar o caixa e gerar os relatórios?')) return;
 
-      fazerLogout();
+      try {
+        const res = await fetch('/fluxo-caixa/fechar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            operadorId: usuarioLogado.id,
+            operadorNome: usuarioLogado.nome
+          })
+        });
+        const dados = await res.json();
+        if (!res.ok) throw new Error(dados.error || 'Não foi possível fechar o caixa.');
+
+        const baixar = confirm('Caixa fechado. Deseja baixar o relatório PDF agora?');
+        if (baixar) window.open(dados.relatorios.pdf, '_blank');
+        window.open(dados.relatorios.xml, '_blank');
+        fazerLogout();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    function imprimirRecibo(venda, transacao) {
+      const janela = window.open('', '_blank', 'width=380,height=600');
+      if (!janela) {
+        alert('Permita pop-ups no navegador para imprimir o recibo.');
+        return;
+      }
+
+      const valor = Number(venda.valor || 0).toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+      });
+      const data = new Date(transacao?.data || Date.now()).toLocaleString('pt-BR');
+
+      janela.document.write(`
+        <!doctype html>
+        <html lang="pt-BR">
+          <head>
+            <meta charset="UTF-8">
+            <title>Recibo de venda</title>
+            <style>
+              body { width: 72mm; margin: 0 auto; font: 12px monospace; color: #000; }
+              h2 { text-align: center; font-size: 16px; }
+              .linha { border-top: 1px dashed #000; margin: 10px 0; }
+              .total { font-size: 16px; font-weight: bold; }
+              @media print { body { width: 72mm; } }
+            </style>
+          </head>
+          <body>
+            <h2>RECIBO DE VENDA</h2>
+            <div class="linha"></div>
+            <div>Data: ${data}</div>
+            <div>Operador: ${usuarioLogado?.nome || 'Operador'}</div>
+            <div class="linha"></div>
+            <div>Produto: ${venda.descricao}</div>
+            <div>Quantidade: ${venda.quantidade}</div>
+            <div>Valor: ${valor}</div>
+            <div class="linha"></div>
+            <div class="total">TOTAL: ${valor}</div>
+            <div class="linha"></div>
+            <div style="text-align:center">Obrigado pela preferência!</div>
+          </body>
+        </html>`);
+      janela.document.close();
+      janela.focus();
+      janela.print();
     }
 
     document.getElementById('formTransacao').addEventListener('submit', async (e) => {
@@ -551,10 +793,14 @@
           document.getElementById('formTransacao').reset();
           alert('Venda registrada e estoque atualizado com sucesso!');
 
+          if (confirm('Deseja imprimir o recibo desta venda?')) {
+            imprimirRecibo(payload, resposta.transacao);
+          }
+
           // Recarrega todos os módulos da interface
           await carregarProdutos();     // O estoque na tabela baixará de 10 un para 9 un!
           await carregarTransacoes();   // A venda aparecerá no histórico
-          await carregarResumoTurno();  // O saldo e as entradas serão atualizados
+          await carregarResumo();       // O saldo e as entradas serão atualizados
         } else {
           alert(resposta.error || resposta.details || 'Erro ao processar venda.');
         }
@@ -601,8 +847,9 @@
             document.getElementById('formCategoria').reset();
             alert('Categoria cadastrada com sucesso!');
 
-            // Se houver função de recarregar categorias/produtos no index.html
-            if (typeof carregarProdutos === 'function') carregarProdutos();
+            // Atualiza os seletores para permitir associar a nova categoria ao próximo produto.
+            await carregarCategorias();
+            if (typeof carregarProdutos === 'function') await carregarProdutos();
           } else {
             const err = await res.json().catch(() => ({}));
             alert(err.error || err.mensagem || 'Erro ao cadastrar categoria');
@@ -664,7 +911,7 @@
 
           // Chamadas das funções de carregamento após o login
           aplicarPermissoes();
-          carregarResumoTurno();
+          carregarResumo();
           carregarProdutos();
           carregarTransacoes();
           carregarCategorias(); // <--- Adicionado aqui para preencher as categorias no login!
@@ -688,9 +935,12 @@
 
         const produto = {
           nome: document.getElementById('prod_nome').value,
+          codigo_barras: document.getElementById('prod_codigo_barras').value.trim() || null,
           preco_venda: parseFloat(document.getElementById('prod_preco_venda').value),
           quantidade_estoque: parseInt(document.getElementById('prod_qtd').value),
-          categoria_id: document.getElementById('prod_categoria_id').value || null
+          categoria_id: document.getElementById('prod_categoria_id').value
+            ? parseInt(document.getElementById('prod_categoria_id').value, 10)
+            : null
         };
 
         try {

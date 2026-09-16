@@ -1,6 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
+const { podeExcluir } = require('../services/authMiddleware');
+
+// Listar transações com suas categorias para atualizar o histórico do PDV.
+router.get('/', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT t.*, c.nome AS categoria_nome
+      FROM transacoes t
+      LEFT JOIN categorias c ON t.categoria_id = c.id
+      ORDER BY t.data DESC, t.id DESC
+    `);
+    return res.json(result.rows);
+  } catch (err) {
+    console.error('Erro ao listar transações:', err);
+    return res.status(500).json({ error: 'Erro ao listar transações', details: err.message });
+  }
+});
 
 // Cadastrar venda/transação com baixa de estoque
 router.post('/', async (req, res) => {
@@ -66,6 +83,24 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: 'Erro ao processar venda', details: err.message });
   } finally {
     client.release();
+  }
+});
+
+router.delete('/:id', podeExcluir, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM transacoes WHERE id = $1 RETURNING id',
+      [req.params.id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Transação não encontrada.' });
+    }
+
+    return res.json({ message: 'Transação excluída com sucesso.' });
+  } catch (err) {
+    console.error('Erro ao excluir transação:', err);
+    return res.status(500).json({ error: 'Erro ao excluir transação.', details: err.message });
   }
 });
 
