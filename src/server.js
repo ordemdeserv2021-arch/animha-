@@ -53,7 +53,22 @@ process.on('unhandledRejection', (reason) => {
   registrarLog('PROMISE_NAO_TRATADA', { erro: erro.message, stack: erro.stack });
 });
 
-// Iniciar o servidor
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT} com timezone America/Sao_Paulo`);
-});
+function iniciarServidor(porta = PORT) {
+  return new Promise((resolve, reject) => {
+    const servidor = app.listen(porta, () => {
+      console.log(`Servidor rodando na porta ${porta} com timezone America/Sao_Paulo`);
+      resolve(servidor);
+    });
+
+    servidor.once('error', reject);
+  });
+}
+
+if (require.main === module) {
+  iniciarServidor().catch((err) => {
+    console.error('Não foi possível iniciar o servidor:', err);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { app, iniciarServidor };
