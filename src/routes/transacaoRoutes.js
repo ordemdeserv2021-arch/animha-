@@ -21,60 +21,75 @@ router.get('/', async (req, res) => {
 
 // Cadastrar venda/transação com baixa de estoque
 router.post('/', async (req, res) => {
-  const { descricao, valor, tipo, categoria_id, produto_id, quantidade } = req.body;
-  const qtdVenda = parseInt(quantidade) || 1;
+  const bodyItens = Array.isArray(req.body?.itens) && req.body.itens.length > 0
+    ? req.body.itens
+    : [req.body];
 
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
 
-    // 1. Se houver produto vinculado em uma VENDA (ENTRADA), atualiza o estoque
-    if (produto_id && tipo === 'ENTRADA') {
-      const prodResult = await client.query(
-        'SELECT quantidade_estoque FROM produtos WHERE id = $1 FOR UPDATE',
-        [produto_id]
-      );
+    const itensProcessados = [];
 
-      if (prodResult.rows.length === 0) {
+    for (const item of bodyItens) {
+      const descricao = String(item.descricao || '').trim();
+      const valor = Number(item.valor);
+      const tipo = String(item.tipo || 'ENTRADA').toUpperCase().trim();
+      const categoriaId = item.categoria_id !== undefined && item.categoria_id !== null && !isNaN(Number(item.categoria_id))
+        ? Number(item.categoria_id)
+        : null;
+      const produtoId = item.produto_id !== undefined && item.produto_id !== null && !isNaN(Number(item.produto_id))
+        ? Number(item.produto_id)
+        : null;
+      const quantidade = Number(item.quantidade || 1);
+
+      if (!descricao || Number.isNaN(valor) || valor <= 0 || !tipo) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ error: 'Produto não encontrado.' });
+        return res.status(400).json({ error: 'Cada item da venda precisa ter descrição, valor e tipo válidos.' });
       }
 
-      const qtdAtual = prodResult.rows[0].quantidade_estoque;
+      if (produtoId && tipo === 'ENTRADA') {
+        const prodResult = await client.query(
+          'SELECT quantidade_estoque FROM produtos WHERE id = $1 FOR UPDATE',
+          [produtoId]
+        );
 
-      if (qtdAtual < qtdVenda) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({ error: `Estoque insuficiente! Disponível: ${qtdAtual} un.` });
+        if (prodResult.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ error: `Produto não encontrado para o item: ${descricao}` });
+        }
+
+        const qtdAtual = Number(prodResult.rows[0].quantidade_estoque || 0);
+
+        if (qtdAtual < quantidade) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: `Estoque insuficiente para "${descricao}". Disponível: ${qtdAtual} un.` });
+        }
+
+        await client.query(
+          'UPDATE produtos SET quantidade_estoque = quantidade_estoque - $1 WHERE id = $2',
+          [quantidade, produtoId]
+        );
       }
 
-      // Baixa a quantidade no estoque
-      await client.query(
-        'UPDATE produtos SET quantidade_estoque = quantidade_estoque - $1 WHERE id = $2',
-        [qtdVenda, produto_id]
+      const transacaoResult = await client.query(
+        `INSERT INTO transacoes (descricao, valor, tipo, categoria_id, produto_id, quantidade, data)
+         VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+         RETURNING *`,
+        [descricao, valor, tipo, categoriaId, produtoId, quantidade]
       );
+
+      itensProcessados.push(transacaoResult.rows[0]);
     }
-
-    // 2. Insere a transação financeira
-    const transacaoResult = await client.query(
-      `INSERT INTO transacoes (descricao, valor, tipo, categoria_id, produto_id, quantidade, data) 
-       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP) 
-       RETURNING *`,
-      [
-        descricao,
-        valor,
-        tipo,
-        categoria_id ? parseInt(categoria_id) : null,
-        produto_id ? parseInt(produto_id) : null,
-        qtdVenda
-      ]
-    );
 
     await client.query('COMMIT');
 
     res.status(201).json({
       message: 'Venda registrada e estoque atualizado com sucesso!',
-      transacao: transacaoResult.rows[0]
+      transacoes: itensProcessados,
+      total: itensProcessados.reduce((soma, item) => soma + Number(item.valor || 0), 0),
+      quantidadeItens: itensProcessados.length
     });
 
   } catch (err) {

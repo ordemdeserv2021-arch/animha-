@@ -18,8 +18,9 @@
     <div class="status-caixa-container">
       <span id="labelAberturaCaixa">Sessão iniciada às: <strong>--:--:--</strong></span>
       <button onclick="fecharCaixaTurno()" class="btn-fechar-caixa">Fechar Caixa / Turno</button>
+      <button onclick="reimprimirUltimoRecibo()" class="btn-categoria">Reimprimir último cupom</button>
     </div>
-    <button onclick="fazerLogout()" class="btn-limpar">Sair / Trocar Usuário</button>
+    <button onclick="trocarUsuario()" class="btn-limpar">Sair / Trocar Usuário</button>
   </div>
 
   <!-- MODAL DE LOGIN -->
@@ -78,6 +79,20 @@
           </select>
         </div>
         <div class="field">
+          <label>Categoria</label>
+          <select id="categoria_id">
+            <option value="">Sem Categoria</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Qtd. Vendida</label>
+          <input type="number" id="quantidade_venda" value="1" min="1" onchange="recalcularValorVenda()">
+        </div>
+        <div class="field">
+          <label>Valor (R$)</label>
+          <input type="number" step="0.01" id="valor" required placeholder="0.00" readonly>
+        </div>
+        <div class="field">
           <label>Vincular Produto</label>
           <select id="produto_id" onchange="selecionarProdutoVenda()">
             <option value="">-- Lançamento Manual sem Produto --</option>
@@ -87,22 +102,72 @@
           <label>Descrição</label>
           <input type="text" id="descricao" required placeholder="Ex: Venda de Câmera">
         </div>
-        <div class="field">
-          <label>Qtd. Vendida</label>
-          <input type="number" id="quantidade_venda" value="1" min="1" onchange="recalcularValorVenda()">
-        </div>
-        <div class="field">
-          <label>Valor (R$)</label>
-          <input type="number" step="0.01" id="valor" required placeholder="0.00">
-        </div>
-        <div class="field">
-          <label>Categoria</label>
-          <select id="categoria_id">
-            <option value="">Sem Categoria</option>
-          </select>
-        </div>
-        <button type="submit" class="btn-registrar">Registrar Venda e Atualizar Estoque</button>
+        <button type="submit" class="btn-registrar">Adicionar ao Carrinho</button>
       </form>
+
+      <div class="card-form-full" style="margin-top: 12px; width: 100%;">
+        <h3>Carrinho da Venda</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th>Produto</th>
+              <th>Qtd.</th>
+              <th>Valor</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaCarrinho"></tbody>
+        </table>
+        <div style="display: flex; justify-content: space-between; margin-top: 12px; font-weight: bold;">
+          <span>Total da venda:</span>
+          <span id="totalCarrinho">R$ 0,00</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px;">
+          <div class="field" style="margin-bottom: 0;">
+            <label>Forma de pagamento</label>
+            <select id="formaPagamento" onchange="atualizarPagamentoCarrinho()">
+              <option value="DINHEIRO">Dinheiro</option>
+              <option value="PIX">Pix</option>
+              <option value="CARTAO">Cartão</option>
+            </select>
+          </div>
+          <div class="field" style="margin-bottom: 0;">
+            <label>Troco</label>
+            <input type="text" id="trocoCarrinho" value="R$ 0,00" readonly>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px;">
+          <div class="field" style="margin-bottom: 0;">
+            <label>Valor recebido (R$)</label>
+            <input type="number" id="valorRecebido" step="0.01" min="0" value="0.00" placeholder="0.00">
+          </div>
+          <div class="field" style="margin-bottom: 0;">
+            <label>Chave Pix</label>
+            <input type="text" id="chavePix" value="pix@loja.com" readonly>
+          </div>
+        </div>
+
+        <div id="boxPagamentoPix"
+          style="display: none; margin-top: 16px; padding: 12px; border: 1px solid #dfe6ee; border-radius: 8px; background: #f9fbfd;">
+          <div style="font-weight: 700; margin-bottom: 10px;">QR Code para pagamento Pix</div>
+          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <img id="qrPix" alt="QR Code Pix" src=""
+              style="width: 120px; height: 120px; border: 1px solid #dfe6ee; background: #fff; padding: 8px; border-radius: 8px;" />
+            <div style="font-size: 0.85rem; color: #4b5563; line-height: 1.5;">
+              <div><strong>Estabelecimento:</strong> <span id="pixNomeLoja">GOOD NIGHT</span></div>
+              <div><strong>Valor:</strong> <span id="pixValorTotal">R$ 0,00</span></div>
+              <div><strong>Chave:</strong> <span id="pixChave">pix@loja.com</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap;">
+          <button type="button" id="btnFinalizarVenda" class="btn-registrar">Finalizar Venda</button>
+          <button type="button" id="btnLimparCarrinho" class="btn-limpar">Limpar Carrinho</button>
+        </div>
+      </div>
 
       <!-- CALCULADORA ACOPLADA -->
       <div class="calculadora-box">
@@ -177,7 +242,38 @@
         <button type="submit" class="btn-produto">Cadastrar Produto</button>
       </form>
 
-      <!-- 3. FORMULÁRIO DE OPERADOR / USUÁRIO -->
+      <!-- 3. FORMULÁRIO DE ESTABELECIMENTO -->
+      <form id="formConfiguracaoLoja" class="card-form">
+        <h3>Dados do Estabelecimento</h3>
+        <div class="field">
+          <label>Nome do Estabelecimento</label>
+          <input type="text" id="loja_nome" required placeholder="Ex: Good Night Bar">
+        </div>
+        <div class="field">
+          <label>CNPJ</label>
+          <input type="text" id="loja_cnpj" required placeholder="00.000.000/0001-00">
+        </div>
+        <div class="field">
+          <label>Endereço</label>
+          <input type="text" id="loja_endereco" required placeholder="Rua, número, bairro, cidade">
+        </div>
+        <div class="field">
+          <label>Telefone</label>
+          <input type="text" id="loja_telefone" required placeholder="(00) 00000-0000">
+        </div>
+        <button type="submit" class="btn-categoria">Salvar Dados da Loja</button>
+      </form>
+
+      <form id="formChavePix" class="card-form">
+        <h3>Configuração do Pix</h3>
+        <div class="field">
+          <label>Chave Pix usada no QR Code</label>
+          <input type="text" id="loja_chave_pix" required placeholder="CPF, CNPJ, e-mail ou chave aleatória">
+        </div>
+        <button type="submit" class="btn-categoria">Salvar Chave Pix</button>
+      </form>
+
+      <!-- 4. FORMULÁRIO DE OPERADOR / USUÁRIO -->
       <form id="formUsuario" class="card-form">
         <h3>Cadastrar Operador / Usuário</h3>
         <div class="field">
@@ -273,9 +369,147 @@
     </table>
   </div>
 
+  <script src="config-loja.js"></script>
   <script>
+    const STORAGE_CONFIG_LOJA = 'configuracaoLojaGoodNight';
+    const CONFIGURACAO_LOJA = window.CONFIGURACAO_LOJA || {
+      nome: 'GOOD NIGHT',
+      cnpj: '00.000.000/0001-00',
+      endereco: 'Rua da Loja, 123 - Centro',
+      telefone: '(00) 00000-0000',
+      chave_pix: 'pix@loja.com'
+    };
+
+    async function carregarConfiguracaoLoja() {
+      try {
+        const res = await fetch('/configuracao');
+        if (!res.ok) {
+          throw new Error('Falha ao consultar a configuração do estabelecimento');
+        }
+
+        const dados = await res.json();
+        Object.assign(CONFIGURACAO_LOJA, dados);
+
+        const nomeEl = document.getElementById('loja_nome');
+        const cnpjEl = document.getElementById('loja_cnpj');
+        const enderecoEl = document.getElementById('loja_endereco');
+        const telefoneEl = document.getElementById('loja_telefone');
+        const chavePixLojaEl = document.getElementById('loja_chave_pix');
+        const chavePixVendaEl = document.getElementById('chavePix');
+
+        if (nomeEl) nomeEl.value = CONFIGURACAO_LOJA.nome || '';
+        if (cnpjEl) cnpjEl.value = CONFIGURACAO_LOJA.cnpj || '';
+        if (enderecoEl) enderecoEl.value = CONFIGURACAO_LOJA.endereco || '';
+        if (telefoneEl) telefoneEl.value = CONFIGURACAO_LOJA.telefone || '';
+        if (chavePixLojaEl) chavePixLojaEl.value = CONFIGURACAO_LOJA.chave_pix || '';
+        if (chavePixVendaEl) chavePixVendaEl.value = CONFIGURACAO_LOJA.chave_pix || '';
+
+        localStorage.setItem(STORAGE_CONFIG_LOJA, JSON.stringify(CONFIGURACAO_LOJA));
+      } catch (err) {
+        console.warn('Não foi possível carregar a configuração da loja:', err);
+
+        try {
+          const salvo = localStorage.getItem(STORAGE_CONFIG_LOJA);
+          if (!salvo) return;
+
+          const dados = JSON.parse(salvo);
+          Object.assign(CONFIGURACAO_LOJA, dados);
+        } catch (_) {
+          // ignora falha do cache local
+        }
+      }
+    }
+
+    async function salvarConfiguracaoLoja() {
+      const dados = {
+        nome: document.getElementById('loja_nome')?.value?.trim() || CONFIGURACAO_LOJA.nome,
+        cnpj: document.getElementById('loja_cnpj')?.value?.trim() || CONFIGURACAO_LOJA.cnpj,
+        endereco: document.getElementById('loja_endereco')?.value?.trim() || CONFIGURACAO_LOJA.endereco,
+        telefone: document.getElementById('loja_telefone')?.value?.trim() || CONFIGURACAO_LOJA.telefone,
+      };
+
+      Object.assign(CONFIGURACAO_LOJA, dados);
+      localStorage.setItem(STORAGE_CONFIG_LOJA, JSON.stringify(dados));
+
+      try {
+        const res = await fetch('/configuracao', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-perfil-usuario': usuarioLogado?.perfil || ''
+          },
+          body: JSON.stringify(dados)
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'Não foi possível salvar no banco');
+        }
+
+        alert('Dados do estabelecimento salvos com sucesso!');
+      } catch (err) {
+        console.error('Erro ao salvar no banco:', err);
+        alert('Dados salvos localmente, mas houve falha ao persistir no banco.');
+      }
+    }
+
+    const formChavePixEl = document.getElementById('formChavePix');
+    if (formChavePixEl) {
+      formChavePixEl.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        if (!usuarioLogado || usuarioLogado.perfil !== 'MASTER') {
+          alert('Apenas o usuário Master pode alterar a chave Pix.');
+          return;
+        }
+
+        const chavePix = document.getElementById('loja_chave_pix').value.trim();
+        if (!chavePix) {
+          alert('Informe uma chave Pix válida.');
+          return;
+        }
+
+        try {
+          const res = await fetch('/configuracao/chave-pix', {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-perfil-usuario': usuarioLogado.perfil
+            },
+            body: JSON.stringify({ chave_pix: chavePix })
+          });
+          const dados = await res.json().catch(() => ({}));
+
+          if (!res.ok) throw new Error(dados.error || 'Não foi possível salvar a chave Pix.');
+
+          CONFIGURACAO_LOJA.chave_pix = dados.chave_pix;
+          document.getElementById('chavePix').value = dados.chave_pix;
+          localStorage.setItem(STORAGE_CONFIG_LOJA, JSON.stringify(CONFIGURACAO_LOJA));
+          alert('Chave Pix salva. Ela será usada nos próximos QR Codes.');
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    }
+
     let usuarioLogado = null;
     let listaProdutos = [];
+    let ultimoRecibo = null;
+    let carrinhoVenda = [];
+
+    function carregarUltimoReciboPersistido() {
+      try {
+        const salvo = localStorage.getItem('ultimoReciboGoodNight');
+        ultimoRecibo = salvo ? JSON.parse(salvo) : null;
+      } catch (err) {
+        ultimoRecibo = null;
+      }
+    }
+
+    function salvarUltimoReciboPersistido() {
+      if (!ultimoRecibo) return;
+      localStorage.setItem('ultimoReciboGoodNight', JSON.stringify(ultimoRecibo));
+    }
 
     // 1. AUTENTICAÇÃO E LOGIN
     document.getElementById('formLogin').addEventListener('submit', async (e) => {
@@ -323,6 +557,8 @@
 
     function fazerLogout() {
       usuarioLogado = null;
+      ultimoRecibo = null;
+      localStorage.removeItem('ultimoReciboGoodNight');
 
       zerarCardsInterface();
       document.getElementById('labelUsuario').innerHTML = `Operador: <strong>Não identificado</strong>`;
@@ -335,6 +571,23 @@
       aplicarPermissoes();
 
       document.getElementById('modalLogin').style.display = 'flex';
+    }
+
+    async function trocarUsuario() {
+      if (!usuarioLogado) {
+        fazerLogout();
+        return;
+      }
+
+      if (carrinhoVenda.length > 0) {
+        alert('Finalize ou limpe o carrinho antes de trocar de operador. O caixa deve ser fechado primeiro.');
+        return;
+      }
+
+      const confirmou = confirm('Troca de operador detectada. O caixa será fechado automaticamente antes de continuar.');
+      if (!confirmou) return;
+
+      await fecharCaixaTurno(true);
     }
 
     // 3. CARREGAMENTO E RESUMO DO TURNO
@@ -367,7 +620,11 @@
       listaProdutos.forEach(p => {
         const tr = document.createElement('tr');
         const precoFormatado = parseFloat(p.preco_venda).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const podeEditarEstoque = usuarioLogado && usuarioLogado.perfil === 'MASTER';
         const acaoExcluir = (usuarioLogado && usuarioLogado.pode_excluir) ? `<button onclick="deletarProduto(${p.id})" class="btn-deletar">Excluir</button>` : '';
+        const acaoEstoque = podeEditarEstoque
+          ? `<button onclick="reporEstoqueProduto(${p.id})" class="btn-categoria">Repor</button>`
+          : '';
 
         tr.innerHTML = `
           <td>${p.id}</td>
@@ -375,7 +632,7 @@
           <td>${p.categoria_nome || 'Geral'}</td>
           <td>${precoFormatado}</td>
           <td><strong>${p.quantidade_estoque} un</strong></td>
-          <td class="col-acoes">${acaoExcluir}</td>
+          <td class="col-acoes">${acaoEstoque}${acaoExcluir}</td>
         `;
         tbody.appendChild(tr);
 
@@ -445,6 +702,48 @@
         });
       } catch (err) {
         console.error('Erro ao carregar transações:', err);
+      }
+    }
+
+    async function reporEstoqueProduto(id) {
+      if (!usuarioLogado || usuarioLogado.perfil !== 'MASTER') {
+        alert('Apenas o usuário Master pode repor o estoque.');
+        return;
+      }
+
+      const produto = listaProdutos.find(p => Number(p.id) === Number(id));
+      if (!produto) {
+        alert('Produto não encontrado.');
+        return;
+      }
+
+      const novoValor = prompt(`Informe a nova quantidade em estoque para "${produto.nome}":`, produto.quantidade_estoque ?? 0);
+      if (novoValor === null) return;
+
+      const quantidade = Number(novoValor);
+      if (!Number.isInteger(quantidade) || quantidade < 0) {
+        alert('Informe uma quantidade válida em unidades.');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/produtos/${id}/estoque`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-perfil-usuario': usuarioLogado.perfil
+          },
+          body: JSON.stringify({ quantidade })
+        });
+
+        const dados = await res.json().catch(() => ({}));
+
+        if (!res.ok) throw new Error(dados.error || 'Não foi possível atualizar o estoque.');
+
+        alert('Estoque atualizado com sucesso!');
+        await carregarProdutos();
+      } catch (err) {
+        alert(err.message);
       }
     }
 
@@ -599,6 +898,14 @@
       carregarUsuarios();
     }
 
+    const formConfiguracaoLojaEl = document.getElementById('formConfiguracaoLoja');
+    if (formConfiguracaoLojaEl) {
+      formConfiguracaoLojaEl.addEventListener('submit', (e) => {
+        e.preventDefault();
+        salvarConfiguracaoLoja();
+      });
+    }
+
     const formUsuarioEl = document.getElementById('formUsuario');
     if (formUsuarioEl) {
       formUsuarioEl.addEventListener('submit', async (e) => {
@@ -671,22 +978,26 @@
     function recalcularValorVenda() {
       const prodId = document.getElementById('produto_id').value;
       const qtd = parseInt(document.getElementById('quantidade_venda').value) || 1;
-      if (prodId) {
-        const prod = listaProdutos.find(p => p.id == prodId);
-        if (prod) {
-          const total = parseFloat(prod.preco_venda) * qtd;
-          document.getElementById('valor').value = total.toFixed(2);
-        }
+      const campoValor = document.getElementById('valor');
+      const prod = prodId ? listaProdutos.find(p => p.id == prodId) : null;
+
+      if (prod) {
+        const total = parseFloat(prod.preco_venda) * qtd;
+        campoValor.value = total.toFixed(2);
+        campoValor.readOnly = true;
+        return;
       }
+
+      campoValor.readOnly = false;
     }
 
-    async function fecharCaixaTurno() {
+    async function fecharCaixaTurno(forcarTrocaUsuario = false) {
       if (!usuarioLogado) {
         alert('Faça login antes de fechar o caixa.');
         return;
       }
 
-      if (!confirm('Deseja fechar o caixa e gerar os relatórios?')) return;
+      if (!forcarTrocaUsuario && !confirm('Deseja fechar o caixa e gerar os relatórios?')) return;
 
       try {
         const res = await fetch('/fluxo-caixa/fechar', {
@@ -700,6 +1011,9 @@
         const dados = await res.json();
         if (!res.ok) throw new Error(dados.error || 'Não foi possível fechar o caixa.');
 
+        ultimoRecibo = null;
+        localStorage.removeItem('ultimoReciboGoodNight');
+
         const baixar = confirm('Caixa fechado. Deseja baixar o relatório PDF agora?');
         if (baixar) window.open(dados.relatorios.pdf, '_blank');
         window.open(dados.relatorios.xml, '_blank');
@@ -709,18 +1023,214 @@
       }
     }
 
+    function reimprimirUltimoRecibo() {
+      if (!ultimoRecibo) {
+        alert('Nenhum cupom foi emitido nesta sessão.');
+        return;
+      }
+
+      imprimirRecibo(ultimoRecibo.venda, ultimoRecibo.transacao);
+    }
+
+    carregarUltimoReciboPersistido();
+    carregarConfiguracaoLoja();
+
+    function atualizarCarrinhoTela() {
+      const tabela = document.getElementById('tabelaCarrinho');
+      const totalEl = document.getElementById('totalCarrinho');
+      const valorRecebidoEl = document.getElementById('valorRecebido');
+      const trocoEl = document.getElementById('trocoCarrinho');
+      const formaPagamentoEl = document.getElementById('formaPagamento');
+
+      if (!tabela || !totalEl) return;
+
+      tabela.innerHTML = '';
+
+      if (carrinhoVenda.length === 0) {
+        tabela.innerHTML = '<tr><td colspan="4">Nenhum item no carrinho.</td></tr>';
+        totalEl.textContent = 'R$ 0,00';
+        if (trocoEl) trocoEl.value = 'R$ 0,00';
+        if (valorRecebidoEl) valorRecebidoEl.value = '0.00';
+        return;
+      }
+
+      let total = 0;
+      carrinhoVenda.forEach((item, index) => {
+        const valorItem = Number(item.valor || 0);
+        total += valorItem;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${item.descricao}</td>
+          <td>${item.quantidade}</td>
+          <td>${valorItem.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+          <td><button type="button" onclick="removerItemCarrinho(${index})" class="btn-deletar">Remover</button></td>
+        `;
+        tabela.appendChild(tr);
+      });
+
+      totalEl.textContent = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+      const pagamento = formaPagamentoEl ? formaPagamentoEl.value : 'DINHEIRO';
+      if (pagamento === 'PIX') {
+        if (valorRecebidoEl) {
+          valorRecebidoEl.value = total.toFixed(2);
+          valorRecebidoEl.readOnly = true;
+        }
+
+        const chavePix = document.getElementById('chavePix')?.value.trim() || '';
+        const nomeLoja = CONFIGURACAO_LOJA.nome || 'GOOD NIGHT';
+        const cidadeLoja = 'SAO PAULO';
+        const dataPix = gerarPayloadPix(chavePix, nomeLoja, cidadeLoja, total);
+        const img = document.getElementById('qrPix');
+        const box = document.getElementById('boxPagamentoPix');
+        const pixNomeEl = document.getElementById('pixNomeLoja');
+        const pixValorEl = document.getElementById('pixValorTotal');
+        const pixChaveEl = document.getElementById('pixChave');
+
+        if (box) box.style.display = 'block';
+        if (pixNomeEl) pixNomeEl.textContent = nomeLoja;
+        if (pixValorEl) pixValorEl.textContent = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        if (pixChaveEl) pixChaveEl.textContent = chavePix || 'Informe a chave Pix';
+        if (img) {
+          img.src = dataPix
+            ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(dataPix)}`
+            : '';
+        }
+      } else {
+        if (valorRecebidoEl) {
+          valorRecebidoEl.readOnly = false;
+        }
+        const boxPix = document.getElementById('boxPagamentoPix');
+        if (boxPix) boxPix.style.display = 'none';
+      }
+
+      if (trocoEl) {
+        const recebido = Number(valorRecebidoEl?.value || 0);
+        const troco = Math.max(0, recebido - total);
+        trocoEl.value = troco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      }
+    }
+
+    function crc16Ccitt(texto) {
+      let crc = 0xFFFF;
+
+      for (let index = 0; index < texto.length; index += 1) {
+        crc ^= texto.charCodeAt(index) << 8;
+        for (let bit = 0; bit < 8; bit += 1) {
+          crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 0xFFFF : (crc << 1) & 0xFFFF;
+        }
+      }
+
+      return crc.toString(16).toUpperCase().padStart(4, '0');
+    }
+
+    function campoPix(id, valor) {
+      return `${String(id).padStart(2, '0')}${String(valor.length).padStart(2, '0')}${valor}`;
+    }
+
+    function gerarPayloadPix(chave, nome, cidade, valor) {
+      if (!chave) return '';
+
+      const nomeFormatado = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 ]/g, '').slice(0, 25).toUpperCase();
+      const cidadeFormatada = cidade.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 ]/g, '').slice(0, 15).toUpperCase();
+      const merchantAccount = campoPix(0, 'BR.GOV.BCB.PIX') + campoPix(1, chave);
+      const payloadSemCrc = [
+        campoPix(0, '01'),
+        campoPix(26, merchantAccount),
+        campoPix(52, '0000'),
+        campoPix(53, '986'),
+        campoPix(54, Number(valor).toFixed(2)),
+        campoPix(58, 'BR'),
+        campoPix(59, nomeFormatado || 'LOJA'),
+        campoPix(60, cidadeFormatada || 'CIDADE'),
+        campoPix(62, campoPix(5, '***')),
+        '6304'
+      ].join('');
+
+      return `${payloadSemCrc}${crc16Ccitt(payloadSemCrc)}`;
+    }
+
+    function removerItemCarrinho(index) {
+      carrinhoVenda.splice(index, 1);
+      atualizarCarrinhoTela();
+    }
+
+    function limparCarrinho() {
+      carrinhoVenda = [];
+      atualizarCarrinhoTela();
+    }
+
+    function adicionarItemCarrinho() {
+      const prodId = document.getElementById('produto_id').value;
+      const descricao = document.getElementById('descricao').value.trim();
+      const valorTotalItem = parseFloat(document.getElementById('valor').value || 0);
+      const categoriaId = document.getElementById('categoria_id').value;
+      const quantidade = parseInt(document.getElementById('quantidade_venda').value || 1);
+
+      if (!descricao || !valorTotalItem || valorTotalItem <= 0) {
+        alert('Informe a descrição e o valor do item antes de adicionar ao carrinho.');
+        return;
+      }
+
+      carrinhoVenda.push({
+        id: Date.now() + Math.random(),
+        descricao,
+        valor: valorTotalItem,
+        quantidade,
+        categoria_id: categoriaId ? parseInt(categoriaId) : null,
+        produto_id: prodId ? parseInt(prodId) : null,
+        tipo: 'ENTRADA'
+      });
+
+      document.getElementById('formTransacao').reset();
+      document.getElementById('quantidade_venda').value = 1;
+      atualizarCarrinhoTela();
+      alert('Item adicionado ao carrinho.');
+    }
+
     function imprimirRecibo(venda, transacao) {
-      const janela = window.open('', '_blank', 'width=380,height=600');
+      const janela = window.open('', '_blank', 'width=380,height=700');
       if (!janela) {
         alert('Permita pop-ups no navegador para imprimir o recibo.');
         return;
       }
 
-      const valor = Number(venda.valor || 0).toLocaleString('pt-BR', {
-        style: 'currency',
-        currency: 'BRL'
+      const saleArray = Array.isArray(venda) ? venda : [venda];
+      const transacoesArray = Array.isArray(transacao) ? transacao : [transacao];
+      const listaItens = saleArray.map((item, idx) => {
+        const produtoId = Number(item.produto_id || 0);
+        const produtoSelecionado = listaProdutos.find(p => Number(p.id) === produtoId);
+        const nomeProduto = produtoSelecionado?.nome || item.descricao || 'Produto não informado';
+        const qtd = Number(item.quantidade || transacoesArray[idx]?.quantidade || 1);
+        const valorItem = Number(item.valor || transacoesArray[idx]?.valor || 0);
+        const valorUnitario = valorItem / (qtd || 1);
+        return {
+          nomeProduto,
+          qtd,
+          valorUnitario,
+          valorItem
+        };
       });
-      const data = new Date(transacao?.data || Date.now()).toLocaleString('pt-BR');
+
+      const totalValor = listaItens.reduce((sum, item) => sum + Number(item.valorItem || 0), 0);
+      const totalFormatado = totalValor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const valorRecebido = Number(document.getElementById('valorRecebido')?.value || 0);
+      const troco = Math.max(0, valorRecebido - totalValor);
+      const data = new Date(transacoesArray[0]?.data || Date.now()).toLocaleString('pt-BR');
+      const operador = usuarioLogado?.nome || 'Operador';
+      const itensHtml = listaItens.map(item => `
+            <div style="margin: 4px 0;">
+              <div style="display:flex; justify-content:space-between; gap:8px; font-weight:bold;">
+                <span>${item.nomeProduto}</span>
+                <span>${item.valorItem.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+              </div>
+              <div style="font-size:9.5px; opacity:0.9; display:flex; justify-content:space-between; gap:8px;">
+                <span>Qtd: ${item.qtd}</span>
+                <span>Unit: ${item.valorUnitario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+              </div>
+            </div>
+      `).join('');
 
       janela.document.write(`
         <!doctype html>
@@ -729,52 +1239,133 @@
             <meta charset="UTF-8">
             <title>Recibo de venda</title>
             <style>
-              body { width: 72mm; margin: 0 auto; font: 12px monospace; color: #000; }
-              h2 { text-align: center; font-size: 16px; }
-              .linha { border-top: 1px dashed #000; margin: 10px 0; }
-              .total { font-size: 16px; font-weight: bold; }
-              @media print { body { width: 72mm; } }
+              * { box-sizing: border-box; }
+              html, body {
+                margin: 0;
+                padding: 0;
+                background: #fff;
+              }
+              body {
+                width: 78mm;
+                margin: 0 auto;
+                padding: 6px 8px 10px;
+                font: 11px/1.2 'Courier New', monospace;
+                color: #000;
+              }
+              h2 {
+                text-align: center;
+                font-size: 16px;
+                font-weight: bold;
+                margin: 0 0 4px;
+                letter-spacing: 1px;
+              }
+              .mini { font-size: 9.5px; }
+              .linha { border-top: 1px dashed #000; margin: 6px 0; }
+              .total { font-size: 15px; font-weight: bold; }
+              .row { display: flex; justify-content: space-between; gap: 8px; }
+              .center { text-align: center; }
+              .bold { font-weight: bold; }
+              @page { size: 78mm auto; margin: 3mm; }
+              @media print {
+                html, body {
+                  width: 78mm;
+                  margin: 0;
+                  padding: 0;
+                  background: #fff;
+                }
+                body {
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+              }
             </style>
           </head>
           <body>
-            <h2>RECIBO DE VENDA</h2>
+            <h2>${CONFIGURACAO_LOJA.nome}</h2>
+            <div class="center mini">CNPJ: ${CONFIGURACAO_LOJA.cnpj}</div>
+            <div class="center mini">${CONFIGURACAO_LOJA.endereco}</div>
+            <div class="center mini">${CONFIGURACAO_LOJA.telefone}</div>
             <div class="linha"></div>
-            <div>Data: ${data}</div>
-            <div>Operador: ${usuarioLogado?.nome || 'Operador'}</div>
+            <div class="row"><span>DATA:</span><span>${data}</span></div>
+            <div class="row"><span>OPERADOR:</span><span>${operador}</span></div>
+            <div class="row"><span>TRANSACAO:</span><span>#${transacoesArray[0]?.id || '---'}</span></div>
             <div class="linha"></div>
-            <div>Produto: ${venda.descricao}</div>
-            <div>Quantidade: ${venda.quantidade}</div>
-            <div>Valor: ${valor}</div>
+            ${itensHtml}
             <div class="linha"></div>
-            <div class="total">TOTAL: ${valor}</div>
+            <div class="row"><span>VALOR RECEBIDO:</span><span>${valorRecebido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
+            <div class="row"><span>TROCO:</span><span>${troco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
+            <div class="row total"><span>TOTAL:</span><span>${totalFormatado}</span></div>
             <div class="linha"></div>
-            <div style="text-align:center">Obrigado pela preferência!</div>
+            <div class="center bold">Obrigado pela preferência!</div>
           </body>
         </html>`);
+
       janela.document.close();
       janela.focus();
-      janela.print();
+      setTimeout(() => {
+        janela.print();
+      }, 350);
     }
 
     document.getElementById('formTransacao').addEventListener('submit', async (e) => {
       e.preventDefault();
-
-      const prodId = document.getElementById('produto_id').value;
-      const catId = document.getElementById('categoria_id').value;
-      const qtdVendida = parseInt(document.getElementById('quantidade_venda').value) || 1;
 
       if (!usuarioLogado) {
         alert('Sessão expirada. Faça login novamente.');
         return;
       }
 
+      adicionarItemCarrinho();
+    });
+
+    document.getElementById('valorRecebido').addEventListener('input', () => {
+      atualizarCarrinhoTela();
+    });
+
+    function atualizarPagamentoCarrinho() {
+      atualizarCarrinhoTela();
+    }
+
+    document.getElementById('btnFinalizarVenda').addEventListener('click', async () => {
+      if (!usuarioLogado) {
+        alert('Sessão expirada. Faça login novamente.');
+        return;
+      }
+
+      if (!carrinhoVenda.length) {
+        alert('Adicione pelo menos um item ao carrinho antes de finalizar a venda.');
+        return;
+      }
+
+      const totalVenda = carrinhoVenda.reduce((soma, item) => soma + Number(item.valor || 0), 0);
+      const metodoPagamento = document.getElementById('formaPagamento')?.value || 'DINHEIRO';
+      const valorRecebido = Number(document.getElementById('valorRecebido').value || 0);
+
+      if (metodoPagamento !== 'PIX' && valorRecebido < totalVenda) {
+        alert(`Valor recebido insuficiente. Total da venda: ${totalVenda.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
+        return;
+      }
+
+      if (metodoPagamento === 'PIX') {
+        const chavePix = document.getElementById('chavePix').value.trim();
+        if (!chavePix) {
+          alert('Informe a chave Pix antes de finalizar a venda.');
+          document.getElementById('chavePix').focus();
+          return;
+        }
+
+        document.getElementById('valorRecebido').value = totalVenda.toFixed(2);
+      }
+
       const payload = {
-        descricao: document.getElementById('descricao').value,
-        valor: parseFloat(document.getElementById('valor').value),
-        tipo: document.getElementById('tipo').value,
-        categoria_id: catId ? parseInt(catId) : null,
-        produto_id: prodId ? parseInt(prodId) : null,
-        quantidade: qtdVendida
+        itens: carrinhoVenda.map(item => ({
+          descricao: item.descricao,
+          valor: Number(item.valor),
+          tipo: item.tipo || 'ENTRADA',
+          categoria_id: item.categoria_id,
+          produto_id: item.produto_id,
+          quantidade: Number(item.quantidade || 1)
+        }))
       };
 
       try {
@@ -790,17 +1381,28 @@
         const resposta = await res.json().catch(() => ({}));
 
         if (res.ok) {
-          document.getElementById('formTransacao').reset();
-          alert('Venda registrada e estoque atualizado com sucesso!');
+          const vendaFinalizada = payload.itens;
+          const transacoesFinalizadas = resposta.transacoes || resposta.transacao || payload.itens;
 
-          if (confirm('Deseja imprimir o recibo desta venda?')) {
-            imprimirRecibo(payload, resposta.transacao);
-          }
+          alert('Venda finalizada e estoque atualizado com sucesso!');
 
-          // Recarrega todos os módulos da interface
-          await carregarProdutos();     // O estoque na tabela baixará de 10 un para 9 un!
-          await carregarTransacoes();   // A venda aparecerá no histórico
-          await carregarResumo();       // O saldo e as entradas serão atualizados
+          ultimoRecibo = {
+            venda: vendaFinalizada,
+            transacao: transacoesFinalizadas
+          };
+
+          document.getElementById('valorRecebido').value = '0.00';
+          document.getElementById('trocoCarrinho').value = 'R$ 0,00';
+          document.getElementById('formaPagamento').value = 'DINHEIRO';
+          document.getElementById('boxPagamentoPix').style.display = 'none';
+
+          salvarUltimoReciboPersistido();
+          imprimirRecibo(vendaFinalizada, transacoesFinalizadas);
+
+          limparCarrinho();
+          await carregarProdutos();
+          await carregarTransacoes();
+          await carregarResumo();
         } else {
           alert(resposta.error || resposta.details || 'Erro ao processar venda.');
         }
@@ -808,6 +1410,10 @@
         console.error('Erro ao registrar venda:', err);
         alert('Erro de comunicação com o servidor.');
       }
+    });
+
+    document.getElementById('btnLimparCarrinho').addEventListener('click', () => {
+      limparCarrinho();
     });
 
     // LÓGICA DA CALCULADORA
@@ -978,18 +1584,22 @@
 
       if (!prodId) {
         if (campoDescricao) campoDescricao.value = '';
-        if (campoValor) campoValor.value = '';
+        if (campoValor) {
+          campoValor.value = '';
+          campoValor.readOnly = false;
+        }
         return;
       }
 
-      // Busca o produto selecionado na lista carregada do banco
       const prod = listaProdutos.find(p => p.id == prodId);
       if (prod) {
         const qtd = parseInt(campoQtd.value) || 1;
         if (campoDescricao) campoDescricao.value = `Venda: ${prod.nome}`;
-        if (campoValor) campoValor.value = (parseFloat(prod.preco_venda) * qtd).toFixed(2);
+        if (campoValor) {
+          campoValor.value = (parseFloat(prod.preco_venda) * qtd).toFixed(2);
+          campoValor.readOnly = true;
+        }
 
-        // Auto-seleciona a categoria do produto no formulário de venda
         const selectCatVenda = document.getElementById('categoria_id');
         if (selectCatVenda && prod.categoria_id) {
           selectCatVenda.value = prod.categoria_id;

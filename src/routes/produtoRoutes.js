@@ -34,6 +34,34 @@ router.post('/', eMaster, async (req, res) => {
   }
 });
 
+router.patch('/:id/estoque', eMaster, async (req, res) => {
+  const { quantidade } = req.body;
+  const numero = Number(quantidade);
+
+  if (!Number.isInteger(numero) || numero < 0) {
+    return res.status(400).json({ error: 'Informe uma quantidade válida para o estoque.' });
+  }
+
+  try {
+    const result = await pool.query(
+      'UPDATE produtos SET quantidade_estoque = $1 WHERE id = $2 RETURNING *',
+      [numero, req.params.id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Produto não encontrado.' });
+    }
+
+    return res.json({
+      message: 'Estoque atualizado com sucesso.',
+      produto: result.rows[0]
+    });
+  } catch (err) {
+    console.error('Erro ao atualizar estoque:', err);
+    return res.status(500).json({ error: 'Erro ao atualizar estoque', details: err.message });
+  }
+});
+
 router.delete('/:id', podeExcluir, async (req, res) => {
   try {
     const result = await pool.query(

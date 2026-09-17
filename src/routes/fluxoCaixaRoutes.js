@@ -54,6 +54,8 @@ router.post('/fechar', async (req, res) => {
       [operadorId || null, nome, abertoEm, entradas, saidas, entradas - saidas, dados.quantidade_transacoes]
     );
 
+    await client.query('DELETE FROM transacoes');
+
     await client.query('COMMIT');
     const resultado = fechamento.rows[0];
     registrarLog('FECHAMENTO_CAIXA', {

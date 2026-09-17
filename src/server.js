@@ -20,6 +20,7 @@ const transacaoRoutes = require('./routes/transacaoRoutes');
 const fluxoCaixaRoutes = require('./routes/fluxoCaixaRoutes');
 const produtoRoutes = require('./routes/produtoRoutes');
 const usuarioRoutes = require('./routes/usuarioRoutes');
+const configuracaoLojaRoutes = require('./routes/configuracaoLojaRoutes');
 
 // Registrar os endpoints da API
 app.use('/', usuarioRoutes);
@@ -29,6 +30,7 @@ app.use('/fluxo-caixa', fluxoCaixaRoutes);
 app.use('/produtos', produtoRoutes);
 app.use('/api/produtos', produtoRoutes);
 app.use('/api/categorias', categoriaRoutes);
+app.use('/', configuracaoLojaRoutes);
 
 app.use((err, req, res, next) => {
   registrarLog('ERRO_NAO_TRATADO', {
